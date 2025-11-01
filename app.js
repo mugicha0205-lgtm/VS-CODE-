@@ -1041,20 +1041,12 @@ function addExerciseEntry() {
         weightOptions.push(`<option value="${i}">${i}kg</option>`);
     }
 
-    // カテゴリー別の種目オプションを生成
+    // カテゴリー別の種目オプションを生成（カスタム種目含む）
     let exerciseOptions = '<option value="">種目を選択</option>';
-    for (const [category, exercises] of Object.entries(EXERCISE_CATEGORIES)) {
+    const allExercisesData = getAllExercises();
+    for (const [category, exercises] of Object.entries(allExercisesData)) {
         exerciseOptions += `<optgroup label="${category}">`;
         exercises.forEach(ex => {
-            exerciseOptions += `<option value="${ex}">${ex}</option>`;
-        });
-        exerciseOptions += '</optgroup>';
-    }
-
-    // カスタム種目があれば追加
-    if (customExercises.length > 0) {
-        exerciseOptions += '<optgroup label="カスタム種目">';
-        customExercises.forEach(ex => {
             exerciseOptions += `<option value="${ex}">${ex}</option>`;
         });
         exerciseOptions += '</optgroup>';
@@ -3053,9 +3045,139 @@ function showGoalAchievement(goalAmount, achievementRate) {
 // 初回表示
 updateMonthlyGoalDisplay();
 
+// ========================================
+// カスタム種目管理
+// ========================================
+
+// カスタム種目の表示を更新
+function updateCustomExerciseList() {
+    const list = document.getElementById('customExerciseList');
+    if (!list) return;
+
+    if (customExercises.length === 0) {
+        list.innerHTML = '<div class="custom-exercise-empty">カスタム種目はまだ登録されていません</div>';
+        return;
+    }
+
+    list.innerHTML = customExercises.map((exercise, index) => `
+        <div class="custom-exercise-item">
+            <div class="custom-exercise-info">
+                <div class="custom-exercise-name">${exercise.name}</div>
+                <span class="custom-exercise-category">${exercise.category}</span>
+            </div>
+            <div class="custom-exercise-actions">
+                <button class="btn-icon delete" onclick="deleteCustomExercise(${index})">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+// カスタム種目を追加
+const addCustomExerciseBtn = document.getElementById('addCustomExerciseBtn');
+if (addCustomExerciseBtn) {
+    addCustomExerciseBtn.addEventListener('click', () => {
+        const nameInput = document.getElementById('customExerciseName');
+        const categorySelect = document.getElementById('customExerciseCategory');
+
+        const name = nameInput.value.trim();
+        const category = categorySelect.value;
+
+        if (!name) {
+            showNotification('種目名を入力してください', 'error');
+            return;
+        }
+
+        // 重複チェック
+        const isDuplicate = customExercises.some(ex => ex.name === name);
+        if (isDuplicate) {
+            showNotification('この種目名は既に登録されています', 'error');
+            return;
+        }
+
+        // カスタム種目を追加
+        customExercises.push({
+            name,
+            category,
+            createdAt: new Date().toISOString()
+        });
+
+        // LocalStorageに保存
+        localStorage.setItem('customExercises', JSON.stringify(customExercises));
+
+        // UIを更新
+        updateCustomExerciseList();
+
+        // フォームをリセット
+        nameInput.value = '';
+        categorySelect.value = '胸';
+
+        showNotification(`「${name}」を追加しました`);
+    });
+}
+
+// カスタム種目を削除
+function deleteCustomExercise(index) {
+    if (!confirm(`「${customExercises[index].name}」を削除してもよろしいですか？`)) {
+        return;
+    }
+
+    const deletedName = customExercises[index].name;
+    customExercises.splice(index, 1);
+
+    // LocalStorageに保存
+    localStorage.setItem('customExercises', JSON.stringify(customExercises));
+
+    // UIを更新
+    updateCustomExerciseList();
+
+    showNotification(`「${deletedName}」を削除しました`);
+}
+
+// 設定ページを開いた時にカスタム種目リストを更新
+const originalNavigateToV2 = navigateTo;
+navigateTo = function(page) {
+    originalNavigateToV2(page);
+    if (page === 'report') {
+        initReportPage();
+    }
+    if (page === 'dashboard') {
+        updateMonthlyGoalDisplay();
+    }
+    if (page === 'settings') {
+        updateCustomExerciseList();
+    }
+};
+
+// エクササイズ選択肢を生成する関数を更新（カスタム種目を含める）
+function getAllExercises() {
+    const allExercises = {};
+
+    // 既存のカテゴリーをコピー
+    Object.keys(EXERCISE_CATEGORIES).forEach(category => {
+        allExercises[category] = [...EXERCISE_CATEGORIES[category]];
+    });
+
+    // カスタム種目を各カテゴリーに追加
+    customExercises.forEach(exercise => {
+        const category = exercise.category;
+        if (!allExercises[category]) {
+            allExercises[category] = [];
+        }
+        allExercises[category].push(exercise.name);
+    });
+
+    return allExercises;
+}
+
 // グローバル関数（HTMLから呼び出すため）
 window.openClientDetail = openClientDetail;
 window.removeExerciseEntry = removeExerciseEntry;
 window.downloadBackup = downloadBackup;
+window.deleteCustomExercise = deleteCustomExercise;
 
 console.log('app.js loaded successfully');

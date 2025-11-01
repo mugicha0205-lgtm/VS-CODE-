@@ -407,6 +407,39 @@
                         Google Driveから復元
                     </button>
                 </div>
+                <div class="settings-section">
+                    <h3>カスタム種目管理</h3>
+                    <p class="section-description">独自のトレーニング種目を追加できます</p>
+                    <div class="custom-exercise-form">
+                        <div class="form-group">
+                            <label>種目名</label>
+                            <input type="text" id="customExerciseName" placeholder="例: ケトルベルスイング">
+                        </div>
+                        <div class="form-group">
+                            <label>カテゴリー</label>
+                            <select id="customExerciseCategory">
+                                <option value="胸">胸</option>
+                                <option value="背中">背中</option>
+                                <option value="肩">肩</option>
+                                <option value="腕">腕</option>
+                                <option value="脚">脚</option>
+                                <option value="腹筋">腹筋</option>
+                                <option value="有酸素">有酸素</option>
+                                <option value="その他">その他</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary" id="addCustomExerciseBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            種目を追加
+                        </button>
+                    </div>
+                    <div class="custom-exercise-list" id="customExerciseList">
+                        <!-- カスタム種目リストはJSで動的に生成 -->
+                    </div>
+                </div>
             </div>
         </div>
     </main>
