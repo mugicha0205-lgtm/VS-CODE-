@@ -2444,6 +2444,422 @@ function scheduleAutoBackup() {
 // 起動時に自動バックアップをチェック
 setTimeout(scheduleAutoBackup, 5000); // 5秒後にチェック
 
+// ========================================
+// 月次レポート機能
+// ========================================
+
+let reportRevenueChart = null;
+let reportSessionsChart = null;
+let currentReportMonth = null;
+
+// 月次レポートページの初期化
+function initReportPage() {
+    const monthSelect = document.getElementById('reportMonthSelect');
+    if (!monthSelect) return;
+
+    // 過去12ヶ月分の選択肢を生成
+    monthSelect.innerHTML = '';
+    const today = new Date();
+
+    for (let i = 0; i < 12; i++) {
+        const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
+        const year = date.getFullYear();
+        const month = date.getMonth() + 1;
+        const option = document.createElement('option');
+        option.value = `${year}-${String(month).padStart(2, '0')}`;
+        option.textContent = `${year}年${month}月`;
+        if (i === 0) option.selected = true;
+        monthSelect.appendChild(option);
+    }
+
+    // イベントリスナー
+    monthSelect.addEventListener('change', () => {
+        currentReportMonth = monthSelect.value;
+        updateReportData();
+    });
+
+    const generateBtn = document.getElementById('generateReportBtn');
+    if (generateBtn) {
+        generateBtn.addEventListener('click', generateMonthlyReportPDF);
+    }
+
+    // 初期データ表示
+    currentReportMonth = monthSelect.value;
+    updateReportData();
+}
+
+// レポートデータの集計
+function aggregateMonthlyData(yearMonth) {
+    const [year, month] = yearMonth.split('-').map(Number);
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0, 23, 59, 59);
+
+    let totalRevenue = 0;
+    let totalSessions = 0;
+    let totalRatings = 0;
+    let ratingCount = 0;
+    let newClientsCount = 0;
+
+    clients.forEach(client => {
+        // 新規顧客数
+        if (client.createdAt) {
+            const createdDate = new Date(client.createdAt);
+            if (createdDate >= startDate && createdDate <= endDate) {
+                newClientsCount++;
+            }
+        }
+
+        // チケット購入（売上）
+        if (client.ticketPurchases) {
+            client.ticketPurchases.forEach(purchase => {
+                const purchaseDate = new Date(purchase.date);
+                if (purchaseDate >= startDate && purchaseDate <= endDate) {
+                    totalRevenue += purchase.price;
+                }
+            });
+        }
+
+        // セッション数と評価
+        if (client.sessions) {
+            client.sessions.forEach(session => {
+                const sessionDate = new Date(session.date);
+                if (sessionDate >= startDate && sessionDate <= endDate) {
+                    totalSessions++;
+                    if (session.rating) {
+                        totalRatings += session.rating;
+                        ratingCount++;
+                    }
+                }
+            });
+        }
+    });
+
+    const avgRating = ratingCount > 0 ? (totalRatings / ratingCount).toFixed(1) : 0;
+
+    return {
+        totalRevenue,
+        totalSessions,
+        newClientsCount,
+        avgRating: parseFloat(avgRating),
+        ratingCount
+    };
+}
+
+// 前月との比較計算
+function calculateChange(current, previous) {
+    if (!previous || previous === 0) return { value: 0, percentage: 0, direction: 'neutral' };
+
+    const diff = current - previous;
+    const percentage = ((diff / previous) * 100).toFixed(1);
+    const direction = diff > 0 ? 'positive' : diff < 0 ? 'negative' : 'neutral';
+
+    return { value: diff, percentage: parseFloat(percentage), direction };
+}
+
+// レポートデータの更新
+function updateReportData() {
+    if (!currentReportMonth) return;
+
+    const currentData = aggregateMonthlyData(currentReportMonth);
+
+    // 前月のデータを取得
+    const [year, month] = currentReportMonth.split('-').map(Number);
+    const prevMonth = month === 1 ? 12 : month - 1;
+    const prevYear = month === 1 ? year - 1 : year;
+    const prevMonthStr = `${prevYear}-${String(prevMonth).padStart(2, '0')}`;
+    const previousData = aggregateMonthlyData(prevMonthStr);
+
+    // サマリーカードの更新
+    document.getElementById('reportRevenue').textContent = `¥${currentData.totalRevenue.toLocaleString()}`;
+    document.getElementById('reportSessions').textContent = `${currentData.totalSessions}回`;
+    document.getElementById('reportNewClients').textContent = `${currentData.newClientsCount}人`;
+    document.getElementById('reportAvgRating').textContent = currentData.avgRating > 0 ? `${currentData.avgRating}/10` : '--';
+
+    // 前月比の表示
+    const revenueChange = calculateChange(currentData.totalRevenue, previousData.totalRevenue);
+    const sessionsChange = calculateChange(currentData.totalSessions, previousData.totalSessions);
+    const clientsChange = calculateChange(currentData.newClientsCount, previousData.newClientsCount);
+    const ratingChange = calculateChange(currentData.avgRating, previousData.avgRating);
+
+    updateChangeDisplay('reportRevenueChange', revenueChange, '円');
+    updateChangeDisplay('reportSessionsChange', sessionsChange, '回');
+    updateChangeDisplay('reportNewClientsChange', clientsChange, '人');
+    updateChangeDisplay('reportRatingChange', ratingChange, '');
+
+    // グラフの更新
+    updateReportCharts();
+
+    // 詳細テーブルの更新
+    updateReportDetailsTable(currentData, previousData);
+}
+
+// 変化表示の更新
+function updateChangeDisplay(elementId, change, unit) {
+    const element = document.getElementById(elementId);
+    if (!element) return;
+
+    element.className = `summary-change ${change.direction}`;
+
+    const arrow = change.direction === 'positive' ? '↑' : change.direction === 'negative' ? '↓' : '→';
+    const sign = change.value > 0 ? '+' : '';
+
+    if (change.direction === 'neutral' && change.value === 0) {
+        element.textContent = '前月と同じ';
+    } else {
+        element.textContent = `${arrow} ${sign}${change.value.toLocaleString()}${unit} (${sign}${change.percentage}%)`;
+    }
+}
+
+// グラフの更新
+function updateReportCharts() {
+    const [year, month] = currentReportMonth.split('-').map(Number);
+
+    // 過去6ヶ月分のデータを取得
+    const months = [];
+    const revenueData = [];
+    const sessionsData = [];
+
+    for (let i = 5; i >= 0; i--) {
+        const targetMonth = month - i;
+        const targetYear = targetMonth <= 0 ? year - 1 : year;
+        const adjustedMonth = targetMonth <= 0 ? targetMonth + 12 : targetMonth;
+        const monthStr = `${targetYear}-${String(adjustedMonth).padStart(2, '0')}`;
+
+        const data = aggregateMonthlyData(monthStr);
+        months.push(`${adjustedMonth}月`);
+        revenueData.push(data.totalRevenue);
+        sessionsData.push(data.totalSessions);
+    }
+
+    // 売上推移グラフ
+    const revenueCtx = document.getElementById('reportRevenueChart');
+    if (revenueCtx) {
+        if (reportRevenueChart) {
+            reportRevenueChart.destroy();
+        }
+
+        reportRevenueChart = new Chart(revenueCtx, {
+            type: 'line',
+            data: {
+                labels: months,
+                datasets: [{
+                    label: '売上 (円)',
+                    data: revenueData,
+                    borderColor: 'rgb(59, 130, 246)',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return '¥' + value.toLocaleString();
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // セッション数推移グラフ
+    const sessionsCtx = document.getElementById('reportSessionsChart');
+    if (sessionsCtx) {
+        if (reportSessionsChart) {
+            reportSessionsChart.destroy();
+        }
+
+        reportSessionsChart = new Chart(sessionsCtx, {
+            type: 'bar',
+            data: {
+                labels: months,
+                datasets: [{
+                    label: 'セッション数',
+                    data: sessionsData,
+                    backgroundColor: 'rgba(139, 92, 246, 0.8)',
+                    borderColor: 'rgb(139, 92, 246)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                }
+            }
+        });
+    }
+}
+
+// 詳細テーブルの更新
+function updateReportDetailsTable(currentData, previousData) {
+    const tbody = document.querySelector('#reportDetailsTable tbody');
+    if (!tbody) return;
+
+    const rows = [
+        {
+            label: '総売上',
+            current: `¥${currentData.totalRevenue.toLocaleString()}`,
+            previous: `¥${previousData.totalRevenue.toLocaleString()}`,
+            change: calculateChange(currentData.totalRevenue, previousData.totalRevenue)
+        },
+        {
+            label: 'セッション数',
+            current: `${currentData.totalSessions}回`,
+            previous: `${previousData.totalSessions}回`,
+            change: calculateChange(currentData.totalSessions, previousData.totalSessions)
+        },
+        {
+            label: '新規顧客',
+            current: `${currentData.newClientsCount}人`,
+            previous: `${previousData.newClientsCount}人`,
+            change: calculateChange(currentData.newClientsCount, previousData.newClientsCount)
+        },
+        {
+            label: '平均評価',
+            current: currentData.avgRating > 0 ? `${currentData.avgRating}/10` : '--',
+            previous: previousData.avgRating > 0 ? `${previousData.avgRating}/10` : '--',
+            change: calculateChange(currentData.avgRating, previousData.avgRating)
+        },
+        {
+            label: '1セッション平均単価',
+            current: currentData.totalSessions > 0 ? `¥${Math.round(currentData.totalRevenue / currentData.totalSessions).toLocaleString()}` : '--',
+            previous: previousData.totalSessions > 0 ? `¥${Math.round(previousData.totalRevenue / previousData.totalSessions).toLocaleString()}` : '--',
+            change: calculateChange(
+                currentData.totalSessions > 0 ? currentData.totalRevenue / currentData.totalSessions : 0,
+                previousData.totalSessions > 0 ? previousData.totalRevenue / previousData.totalSessions : 0
+            )
+        }
+    ];
+
+    tbody.innerHTML = rows.map(row => {
+        const changeClass = row.change.direction === 'positive' ? 'change-positive' :
+                          row.change.direction === 'negative' ? 'change-negative' : '';
+        const arrow = row.change.direction === 'positive' ? '↑' :
+                     row.change.direction === 'negative' ? '↓' : '→';
+        const sign = row.change.value > 0 ? '+' : '';
+
+        return `
+            <tr>
+                <td>${row.label}</td>
+                <td>${row.current}</td>
+                <td>${row.previous}</td>
+                <td class="${changeClass}">${arrow} ${sign}${row.change.percentage}%</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// PDF生成機能
+function generateMonthlyReportPDF() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    const [year, month] = currentReportMonth.split('-').map(Number);
+    const currentData = aggregateMonthlyData(currentReportMonth);
+
+    // タイトル
+    doc.setFontSize(20);
+    doc.text(`${year}年${month}月 月次レポート`, 105, 20, { align: 'center' });
+
+    // 生成日時
+    doc.setFontSize(10);
+    doc.text(`生成日: ${new Date().toLocaleDateString('ja-JP')}`, 105, 28, { align: 'center' });
+
+    let yPos = 45;
+
+    // サマリー
+    doc.setFontSize(14);
+    doc.text('サマリー', 20, yPos);
+    yPos += 10;
+
+    doc.setFontSize(11);
+    doc.text(`総売上: ¥${currentData.totalRevenue.toLocaleString()}`, 25, yPos);
+    yPos += 8;
+    doc.text(`セッション数: ${currentData.totalSessions}回`, 25, yPos);
+    yPos += 8;
+    doc.text(`新規顧客: ${currentData.newClientsCount}人`, 25, yPos);
+    yPos += 8;
+    doc.text(`平均評価: ${currentData.avgRating > 0 ? currentData.avgRating + '/10' : '--'}`, 25, yPos);
+    yPos += 8;
+
+    if (currentData.totalSessions > 0) {
+        const avgPrice = Math.round(currentData.totalRevenue / currentData.totalSessions);
+        doc.text(`1セッション平均単価: ¥${avgPrice.toLocaleString()}`, 25, yPos);
+        yPos += 8;
+    }
+
+    yPos += 10;
+
+    // 過去6ヶ月の推移
+    doc.setFontSize(14);
+    doc.text('過去6ヶ月の推移', 20, yPos);
+    yPos += 10;
+
+    doc.setFontSize(10);
+    doc.text('月', 30, yPos);
+    doc.text('売上', 60, yPos);
+    doc.text('セッション数', 100, yPos);
+    yPos += 5;
+
+    // 過去6ヶ月分のデータ
+    for (let i = 5; i >= 0; i--) {
+        const targetMonth = month - i;
+        const targetYear = targetMonth <= 0 ? year - 1 : year;
+        const adjustedMonth = targetMonth <= 0 ? targetMonth + 12 : targetMonth;
+        const monthStr = `${targetYear}-${String(adjustedMonth).padStart(2, '0')}`;
+
+        const data = aggregateMonthlyData(monthStr);
+
+        yPos += 7;
+        doc.text(`${adjustedMonth}月`, 30, yPos);
+        doc.text(`¥${data.totalRevenue.toLocaleString()}`, 60, yPos);
+        doc.text(`${data.totalSessions}回`, 100, yPos);
+    }
+
+    yPos += 15;
+
+    // フッター
+    doc.setFontSize(8);
+    doc.text('PT Manager - パーソナルトレーナー顧客管理システム', 105, 280, { align: 'center' });
+
+    // PDFをダウンロード
+    doc.save(`月次レポート_${year}年${month}月.pdf`);
+
+    showNotification('PDFレポートをダウンロードしました');
+}
+
+// ページ切り替え時にレポートページを初期化
+const originalNavigateTo = navigateTo;
+navigateTo = function(page) {
+    originalNavigateTo(page);
+    if (page === 'report') {
+        initReportPage();
+    }
+};
+
 // グローバル関数（HTMLから呼び出すため）
 window.openClientDetail = openClientDetail;
 window.removeExerciseEntry = removeExerciseEntry;
