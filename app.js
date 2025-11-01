@@ -3174,6 +3174,191 @@ function getAllExercises() {
     return allExercises;
 }
 
+// ========================================
+// PWA通知機能
+// ========================================
+
+let notificationPermission = 'default';
+let notificationEnabled = false;
+
+// 通知設定の読み込み
+const notificationSettings = localStorage.getItem('notificationSettings');
+if (notificationSettings) {
+    const settings = JSON.parse(notificationSettings);
+    notificationEnabled = settings.enabled || false;
+    document.getElementById('notificationTiming').value = settings.timing || 60;
+}
+
+// 通知トグルの初期化
+const notificationToggle = document.getElementById('notificationToggle');
+const notificationSettingsDiv = document.getElementById('notificationSettings');
+
+if (notificationToggle) {
+    notificationToggle.checked = notificationEnabled;
+
+    notificationToggle.addEventListener('change', (e) => {
+        notificationEnabled = e.target.checked;
+        notificationSettingsDiv.style.display = notificationEnabled ? 'block' : 'none';
+
+        saveNotificationSettings();
+
+        if (notificationEnabled && Notification.permission === 'default') {
+            // 通知権限がまだの場合は表示
+            showNotification('通知を有効化ボタンを押して権限を許可してください', 'info');
+        }
+    });
+
+    // 初期表示
+    notificationSettingsDiv.style.display = notificationEnabled ? 'block' : 'none';
+}
+
+// 通知権限リクエストボタン
+const requestNotificationBtn = document.getElementById('requestNotificationBtn');
+if (requestNotificationBtn) {
+    requestNotificationBtn.addEventListener('click', async () => {
+        if (!('Notification' in window)) {
+            showNotification('このブラウザは通知機能に対応していません', 'error');
+            return;
+        }
+
+        try {
+            const permission = await Notification.requestPermission();
+            notificationPermission = permission;
+            updateNotificationStatus();
+
+            if (permission === 'granted') {
+                showNotification('通知権限が許可されました');
+                // テスト通知を送信
+                new Notification('PT Manager', {
+                    body: 'セッション通知が有効になりました！',
+                    icon: 'icon-192.png',
+                    badge: 'icon-192.png'
+                });
+            } else if (permission === 'denied') {
+                showNotification('通知権限が拒否されました。ブラウザの設定から許可してください。', 'error');
+            }
+        } catch (error) {
+            console.error('通知権限エラー:', error);
+            showNotification('通知権限の取得に失敗しました', 'error');
+        }
+    });
+}
+
+// 通知タイミング変更
+const notificationTimingSelect = document.getElementById('notificationTiming');
+if (notificationTimingSelect) {
+    notificationTimingSelect.addEventListener('change', () => {
+        saveNotificationSettings();
+    });
+}
+
+// 通知設定を保存
+function saveNotificationSettings() {
+    const settings = {
+        enabled: notificationEnabled,
+        timing: parseInt(document.getElementById('notificationTiming').value)
+    };
+    localStorage.setItem('notificationSettings', JSON.stringify(settings));
+}
+
+// 通知ステータスの更新
+function updateNotificationStatus() {
+    const statusDiv = document.getElementById('notificationStatus');
+    if (!statusDiv) return;
+
+    if (!('Notification' in window)) {
+        statusDiv.innerHTML = '<p class="status-denied">このブラウザは通知機能に対応していません</p>';
+        return;
+    }
+
+    const permission = Notification.permission;
+
+    if (permission === 'granted') {
+        statusDiv.innerHTML = '<p class="status-granted">✓ 通知が有効です</p>';
+        if (requestNotificationBtn) requestNotificationBtn.style.display = 'none';
+    } else if (permission === 'denied') {
+        statusDiv.innerHTML = '<p class="status-denied">通知が拒否されています。ブラウザの設定から許可してください。</p>';
+        if (requestNotificationBtn) requestNotificationBtn.style.display = 'none';
+    } else {
+        statusDiv.innerHTML = '<p class="status-pending">通知権限を許可してください</p>';
+        if (requestNotificationBtn) requestNotificationBtn.style.display = 'block';
+    }
+}
+
+// 予約の通知をスケジュール
+function scheduleAppointmentNotification(appointment, clientName) {
+    if (!notificationEnabled || Notification.permission !== 'granted') {
+        return;
+    }
+
+    const settings = JSON.parse(localStorage.getItem('notificationSettings') || '{"timing": 60}');
+    const notificationTime = new Date(appointment.getTime() - settings.timing * 60 * 1000);
+    const now = new Date();
+
+    if (notificationTime > now) {
+        const delay = notificationTime.getTime() - now.getTime();
+
+        setTimeout(() => {
+            new Notification('セッションのリマインダー', {
+                body: `${clientName}様のセッションが${settings.timing}分後に始まります`,
+                icon: 'icon-192.png',
+                badge: 'icon-192.png',
+                tag: 'session-reminder',
+                requireInteraction: true
+            });
+        }, delay);
+    }
+}
+
+// 今日・明日の予約をチェックして通知をスケジュール
+function checkUpcomingAppointments() {
+    if (!notificationEnabled || Notification.permission !== 'granted') {
+        return;
+    }
+
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(23, 59, 59);
+
+    clients.forEach(client => {
+        if (client.sessions && client.sessions.length > 0) {
+            client.sessions.forEach(session => {
+                if (session.nextAppointment) {
+                    const appointmentDate = new Date(session.nextAppointment);
+                    if (appointmentDate >= now && appointmentDate <= tomorrow) {
+                        scheduleAppointmentNotification(appointmentDate, client.name);
+                    }
+                }
+            });
+        }
+    });
+}
+
+// 設定ページを開いた時に通知ステータスを更新
+const originalNavigateToV3 = navigateTo;
+navigateTo = function(page) {
+    originalNavigateToV3(page);
+    if (page === 'report') {
+        initReportPage();
+    }
+    if (page === 'dashboard') {
+        updateMonthlyGoalDisplay();
+    }
+    if (page === 'settings') {
+        updateCustomExerciseList();
+        updateNotificationStatus();
+    }
+};
+
+// 起動時に予約をチェック
+if ('Notification' in window && Notification.permission === 'granted') {
+    checkUpcomingAppointments();
+}
+
+// 毎時間予約をチェック
+setInterval(checkUpcomingAppointments, 60 * 60 * 1000);
+
 // グローバル関数（HTMLから呼び出すため）
 window.openClientDetail = openClientDetail;
 window.removeExerciseEntry = removeExerciseEntry;

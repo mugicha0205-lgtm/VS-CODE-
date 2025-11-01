@@ -2818,3 +2818,32 @@ html {
     padding: 32px;
     color: var(--text-muted);
 }
+
+/* ===== 通知設定 ===== */
+.notification-status {
+    margin: 12px 0;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 13px;
+}
+
+.status-pending {
+    margin: 0;
+    color: var(--text-muted);
+}
+
+.status-granted {
+    margin: 0;
+    color: var(--success-green);
+    background: rgba(34, 197, 94, 0.1);
+    padding: 8px 12px;
+    border-radius: 6px;
+}
+
+.status-denied {
+    margin: 0;
+    color: var(--danger-red);
+    background: rgba(239, 68, 68, 0.1);
+    padding: 8px 12px;
+    border-radius: 6px;
+}

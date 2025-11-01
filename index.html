@@ -385,11 +385,33 @@
             <div class="settings-container">
                 <div class="settings-section">
                     <h3>通知設定</h3>
+                    <p class="section-description">セッション前に通知を受け取ることができます</p>
                     <label class="switch-label">
                         <input type="checkbox" id="notificationToggle">
                         <span class="switch-slider"></span>
                         <span>予約リマインダー通知を有効にする</span>
                     </label>
+                    <div id="notificationSettings" style="display: none; margin-top: 16px;">
+                        <div class="form-group">
+                            <label>通知タイミング</label>
+                            <select id="notificationTiming">
+                                <option value="60">1時間前</option>
+                                <option value="120">2時間前</option>
+                                <option value="180">3時間前</option>
+                                <option value="1440">1日前</option>
+                            </select>
+                        </div>
+                        <div class="notification-status" id="notificationStatus">
+                            <p class="status-pending">通知権限を許可してください</p>
+                        </div>
+                        <button class="btn btn-primary" id="requestNotificationBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                            </svg>
+                            通知を有効化
+                        </button>
+                    </div>
                 </div>
                 <div class="settings-section">
                     <h3>データ管理</h3>
