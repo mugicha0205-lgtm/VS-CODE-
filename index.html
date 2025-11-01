@@ -77,6 +77,14 @@
                 </svg>
                 <span>月次レポート</span>
             </li>
+            <li class="nav-item" data-page="ai-trainer">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2z"></path>
+                    <path d="M12 6v6l4 2"></path>
+                    <circle cx="12" cy="12" r="1"></circle>
+                </svg>
+                <span>AIメニュー提案</span>
+            </li>
             <li class="nav-item" data-page="settings">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="3"></circle>
@@ -265,6 +273,55 @@
             </div>
             <div class="calendar-view" id="calendarView">
                 <!-- カレンダーはJSで動的に生成 -->
+            </div>
+        </div>
+
+        <!-- AIメニュー提案ページ -->
+        <div class="page" id="ai-trainerPage">
+            <div class="page-header">
+                <h2 class="page-title">AIメニュー提案</h2>
+            </div>
+
+            <div class="ai-trainer-container">
+                <div class="ai-config-section">
+                    <h3>API設定</h3>
+                    <p class="section-description">OpenAI APIキーを設定して、AI機能を有効にしてください</p>
+                    <div class="form-group">
+                        <label>OpenAI APIキー</label>
+                        <input type="password" id="openaiApiKey" placeholder="sk-...">
+                        <small class="form-help">APIキーはブラウザのLocalStorageに保存されます</small>
+                    </div>
+                    <button class="btn btn-primary" id="saveApiKeyBtn">APIキーを保存</button>
+                    <div class="api-status" id="apiStatus"></div>
+                </div>
+
+                <div class="ai-suggestion-section">
+                    <h3>メニュー提案を生成</h3>
+                    <div class="form-group">
+                        <label>顧客を選択</label>
+                        <select id="aiClientSelect">
+                            <option value="">顧客を選択してください</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" id="generateMenuBtn" disabled>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2z"></path>
+                            <path d="M12 6v6l4 2"></path>
+                        </svg>
+                        AIメニューを生成
+                    </button>
+                </div>
+
+                <div class="ai-result-section" id="aiResultSection" style="display: none;">
+                    <h3>提案されたメニュー</h3>
+                    <div class="ai-result-content" id="aiResultContent">
+                        <!-- AIの提案結果がここに表示されます -->
+                    </div>
+                    <div class="ai-actions">
+                        <button class="btn btn-secondary" id="copyMenuBtn">クリップボードにコピー</button>
+                        <button class="btn btn-secondary" id="applyMenuBtn">セッションに適用</button>
+                    </div>
+                </div>
             </div>
         </div>
 

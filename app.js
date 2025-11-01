@@ -3404,6 +3404,223 @@ if ('Notification' in window && Notification.permission === 'granted') {
 // 毎時間予約をチェック
 setInterval(checkUpcomingAppointments, 60 * 60 * 1000);
 
+// ========================================
+// AIメニュー提案機能
+// ========================================
+
+let openaiApiKey = null;
+let currentAISuggestion = null;
+
+// OpenAI APIキーの読み込み
+const savedApiKey = localStorage.getItem('openaiApiKey');
+if (savedApiKey) {
+    openaiApiKey = savedApiKey;
+}
+
+// APIキー保存
+const saveApiKeyBtn = document.getElementById('saveApiKeyBtn');
+if (saveApiKeyBtn) {
+    saveApiKeyBtn.addEventListener('click', () => {
+        const apiKeyInput = document.getElementById('openaiApiKey');
+        const apiKey = apiKeyInput.value.trim();
+
+        if (!apiKey) {
+            showNotification('APIキーを入力してください', 'error');
+            return;
+        }
+
+        if (!apiKey.startsWith('sk-')) {
+            showNotification('有効なOpenAI APIキーを入力してください（sk-で始まる必要があります）', 'error');
+            return;
+        }
+
+        openaiApiKey = apiKey;
+        localStorage.setItem('openaiApiKey', apiKey);
+
+        const statusDiv = document.getElementById('apiStatus');
+        statusDiv.className = 'api-status success';
+        statusDiv.textContent = '✓ APIキーが保存されました';
+
+        document.getElementById('generateMenuBtn').disabled = false;
+
+        showNotification('APIキーを保存しました');
+    });
+}
+
+// 顧客選択リストの初期化
+function initAIClientSelect() {
+    const select = document.getElementById('aiClientSelect');
+    if (!select) return;
+
+    select.innerHTML = '<option value="">顧客を選択してください</option>';
+
+    clients.forEach((client, index) => {
+        const option = document.createElement('option');
+        option.value = index;
+        option.textContent = client.name;
+        select.appendChild(option);
+    });
+
+    // APIキーが設定されている場合はボタンを有効化
+    const openaiKey = localStorage.getItem('openaiApiKey');
+    if (openaiKey) {
+        document.getElementById('openaiApiKey').value = openaiKey;
+        document.getElementById('generateMenuBtn').disabled = false;
+
+        const statusDiv = document.getElementById('apiStatus');
+        statusDiv.className = 'api-status success';
+        statusDiv.textContent = '✓ APIキーが設定されています';
+    }
+}
+
+// AIメニュー生成
+const generateMenuBtn = document.getElementById('generateMenuBtn');
+if (generateMenuBtn) {
+    generateMenuBtn.addEventListener('click', async () => {
+        const clientIndex = document.getElementById('aiClientSelect').value;
+
+        if (!clientIndex) {
+            showNotification('顧客を選択してください', 'error');
+            return;
+        }
+
+        if (!openaiApiKey) {
+            showNotification('先にOpenAI APIキーを設定してください', 'error');
+            return;
+        }
+
+        const client = clients[clientIndex];
+        await generateAIMenu(client);
+    });
+}
+
+// AIメニュー生成処理
+async function generateAIMenu(client) {
+    const resultSection = document.getElementById('aiResultSection');
+    const resultContent = document.getElementById('aiResultContent');
+
+    resultSection.style.display = 'block';
+    resultContent.innerHTML = '<div class="ai-loading"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle></svg><span style="margin-left: 12px;">AIがメニューを生成中...</span></div>';
+
+    try {
+        // クライアント情報を収集
+        const clientInfo = {
+            name: client.name,
+            goal: client.goal || '未設定',
+            trainingPurpose: client.trainingPurpose || '未設定',
+            initialWeight: client.initialWeight,
+            goalWeight: client.goalWeight,
+            initialBodyFat: client.initialBodyFat,
+            goalBodyFat: client.goalBodyFat,
+            medicalNotes: client.medicalNotes || 'なし',
+            lastSession: client.sessions && client.sessions.length > 0 ? client.sessions[0] : null
+        };
+
+        // OpenAI APIを呼び出し
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${openaiApiKey}`
+            },
+            body: JSON.stringify({
+                model: 'gpt-4o-mini',
+                messages: [{
+                    role: 'system',
+                    content: 'あなたは経験豊富なパーソナルトレーナーです。クライアントの情報に基づいて、最適なトレーニングメニューを提案してください。'
+                }, {
+                    role: 'user',
+                    content: `以下のクライアント情報に基づいて、1時間のパーソナルトレーニングメニューを提案してください：
+
+【クライアント情報】
+- 名前: ${clientInfo.name}
+- トレーニング目的: ${clientInfo.trainingPurpose}
+- 目標: ${clientInfo.goal}
+- 現在の体重: ${clientInfo.initialWeight || '未記録'}kg
+- 目標体重: ${clientInfo.goalWeight || '未設定'}kg
+- 現在の体脂肪率: ${clientInfo.initialBodyFat || '未記録'}%
+- 目標体脂肪率: ${clientInfo.goalBodyFat || '未設定'}%
+- 特記事項: ${clientInfo.medicalNotes}
+${clientInfo.lastSession ? `- 前回のトレーニング評価: ${clientInfo.lastSession.rating}/10` : ''}
+
+【提案形式】
+1. ウォームアップ（5-10分）
+2. メイントレーニング（40-45分）
+   - 各種目：セット数、レップ数、推奨重量
+3. クールダウン（5-10分）
+
+注意点や励ましのメッセージも添えてください。`
+                }],
+                temperature: 0.7,
+                max_tokens: 1500
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error?.message || `API Error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const suggestion = data.choices[0].message.content;
+
+        currentAISuggestion = suggestion;
+
+        resultContent.innerHTML = `<div style="white-space: pre-wrap;">${suggestion}</div>`;
+
+        showNotification('AIメニューが生成されました');
+
+    } catch (error) {
+        console.error('AI generation error:', error);
+        resultContent.innerHTML = `<div class="api-status error">エラーが発生しました: ${error.message}<br><br>APIキーが正しいか確認してください。OpenAI APIキーは https://platform.openai.com/api-keys で取得できます。</div>`;
+        showNotification('AIメニューの生成に失敗しました', 'error');
+    }
+}
+
+// クリップボードにコピー
+const copyMenuBtn = document.getElementById('copyMenuBtn');
+if (copyMenuBtn) {
+    copyMenuBtn.addEventListener('click', () => {
+        if (!currentAISuggestion) return;
+
+        navigator.clipboard.writeText(currentAISuggestion)
+            .then(() => {
+                showNotification('クリップボードにコピーしました');
+            })
+            .catch(err => {
+                console.error('Copy error:', err);
+                showNotification('コピーに失敗しました', 'error');
+            });
+    });
+}
+
+// セッションに適用
+const applyMenuBtn = document.getElementById('applyMenuBtn');
+if (applyMenuBtn) {
+    applyMenuBtn.addEventListener('click', () => {
+        showNotification('この機能は実装中です。現在はクリップボードにコピーして手動で入力してください。', 'info');
+    });
+}
+
+// AI Trainerページを開いた時にクライアントリストを更新
+const originalNavigateToV4 = navigateTo;
+navigateTo = function(page) {
+    originalNavigateToV4(page);
+    if (page === 'report') {
+        initReportPage();
+    }
+    if (page === 'dashboard') {
+        updateMonthlyGoalDisplay();
+    }
+    if (page === 'settings') {
+        updateCustomExerciseList();
+        updateNotificationStatus();
+    }
+    if (page === 'ai-trainer') {
+        initAIClientSelect();
+    }
+};
+
 // グローバル関数（HTMLから呼び出すため）
 window.openClientDetail = openClientDetail;
 window.removeExerciseEntry = removeExerciseEntry;
