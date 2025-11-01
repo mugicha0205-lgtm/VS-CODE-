@@ -1358,6 +1358,25 @@ body {
     color: var(--accent-blue);
 }
 
+/* テンプレートアクション */
+.template-actions {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.template-actions .btn-small {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.template-actions .btn-small svg {
+    width: 14px;
+    height: 14px;
+}
+
 /* ===== カレンダービュー ===== */
 .calendar-view {
     background: var(--white);

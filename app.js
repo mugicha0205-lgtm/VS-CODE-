@@ -107,6 +107,9 @@ const EXERCISE_CATEGORIES = {
 // カスタム種目を保存する配列
 let customExercises = [];
 
+// テンプレートメニュー（顧客ごとに保存）
+let menuTemplates = {};
+
 // ========================================
 // 初期化
 // ========================================
@@ -189,6 +192,8 @@ function setupEventListeners() {
 
     // エクササイズ追加ボタン
     document.getElementById('addExerciseBtn').addEventListener('click', addExerciseEntry);
+    document.getElementById('saveTemplateBtn').addEventListener('click', saveMenuTemplate);
+    document.getElementById('loadTemplateBtn').addEventListener('click', loadMenuTemplate);
 
     // レーティングスライダー
     const ratingSlider = document.getElementById('sessionRating');
@@ -1157,6 +1162,91 @@ function checkRecordImprovement(entryId) {
     // 重量が増えた、または同じ重量でレップ数が増えた場合を記録更新とする
     return currentWeight > previousWeight ||
            (currentWeight === previousWeight && currentReps > previousReps);
+}
+
+// テンプレートメニューを保存
+function saveMenuTemplate() {
+    if (!currentClientId) return;
+
+    const exercises = [];
+    document.querySelectorAll('.exercise-entry').forEach(entry => {
+        const exercise = {
+            name: entry.querySelector('.exercise-select').value,
+            sets: parseInt(entry.querySelector('.exercise-sets').value) || 0,
+            reps: parseInt(entry.querySelector('.exercise-reps').value) || 0,
+            weight: parseFloat(entry.querySelector('.exercise-weight').value) || 0
+        };
+        if (exercise.name) {
+            exercises.push(exercise);
+        }
+    });
+
+    if (exercises.length === 0) {
+        showNotification('保存する種目がありません', 'error');
+        return;
+    }
+
+    const templateName = prompt('テンプレート名を入力してください:', '通常メニュー');
+    if (!templateName) return;
+
+    if (!menuTemplates[currentClientId]) {
+        menuTemplates[currentClientId] = [];
+    }
+
+    menuTemplates[currentClientId].push({
+        name: templateName,
+        exercises: exercises,
+        createdAt: new Date().toISOString()
+    });
+
+    localStorage.setItem('menuTemplates', JSON.stringify(menuTemplates));
+    showNotification(`テンプレート「${templateName}」を保存しました`);
+}
+
+// テンプレートメニューを読み込み
+function loadMenuTemplate() {
+    if (!currentClientId) return;
+
+    const templates = menuTemplates[currentClientId];
+    if (!templates || templates.length === 0) {
+        showNotification('保存されたテンプレートがありません', 'error');
+        return;
+    }
+
+    // テンプレート選択ダイアログ
+    let templateList = 'テンプレートを選択してください:\n\n';
+    templates.forEach((tmpl, index) => {
+        templateList += `${index + 1}. ${tmpl.name} (${tmpl.exercises.length}種目)\n`;
+    });
+    templateList += '\n番号を入力してください:';
+
+    const選択 = prompt(templateList);
+    if (!選択) return;
+
+    const index = parseInt(選択) - 1;
+    if (index < 0 || index >= templates.length) {
+        showNotification('無効な番号です', 'error');
+        return;
+    }
+
+    const template = templates[index];
+
+    // 既存の種目をクリア
+    document.getElementById('exercisesList').innerHTML = '';
+
+    // テンプレートから種目を復元
+    template.exercises.forEach(ex => {
+        addExerciseEntry();
+        const entries = document.querySelectorAll('.exercise-entry');
+        const lastEntry = entries[entries.length - 1];
+
+        lastEntry.querySelector('.exercise-select').value = ex.name;
+        lastEntry.querySelector('.exercise-sets').value = ex.sets;
+        lastEntry.querySelector('.exercise-reps').value = ex.reps;
+        lastEntry.querySelector('.exercise-weight').value = ex.weight;
+    });
+
+    showNotification(`テンプレート「${template.name}」を読み込みました`);
 }
 
 // 基礎代謝を計算（LBM使用）
@@ -2180,6 +2270,18 @@ function loadFromLocalStorage() {
             // サンプルデータをロード
             loadSampleData();
         }
+
+        // テンプレートメニューを読み込み
+        const templatesData = localStorage.getItem('menuTemplates');
+        if (templatesData) {
+            menuTemplates = JSON.parse(templatesData);
+        }
+
+        // カスタム種目を読み込み
+        const customExData = localStorage.getItem('customExercises');
+        if (customExData) {
+            customExercises = JSON.parse(customExData);
+        }
     } catch (e) {
         console.error('データ読み込みエラー:', e);
         clients = [];
@@ -2294,8 +2396,57 @@ function closeAllModals() {
     });
 }
 
+// ========================================
+// 自動バックアップ機能
+// ========================================
+
+// データをJSONファイルとしてダウンロード
+function downloadBackup() {
+    const backupData = {
+        clients: clients,
+        menuTemplates: menuTemplates,
+        customExercises: customExercises,
+        backupDate: new Date().toISOString(),
+        version: '1.0'
+    };
+
+    const jsonString = JSON.stringify(backupData, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    const timestamp = new Date().toISOString().split('T')[0];
+    a.download = `pt-manager-backup-${timestamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showNotification('バックアップファイルをダウンロードしました');
+}
+
+// 毎週日曜日の夜に自動バックアップ
+function scheduleAutoBackup() {
+    const lastBackup = localStorage.getItem('lastBackupDate');
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0 = 日曜日
+
+    // 日曜日かつ前回のバックアップから7日以上経過している場合
+    if (dayOfWeek === 0) {
+        if (!lastBackup || (Date.now() - new Date(lastBackup).getTime()) > 7 * 24 * 60 * 60 * 1000) {
+            downloadBackup();
+            localStorage.setItem('lastBackupDate', today.toISOString());
+        }
+    }
+}
+
+// 起動時に自動バックアップをチェック
+setTimeout(scheduleAutoBackup, 5000); // 5秒後にチェック
+
 // グローバル関数（HTMLから呼び出すため）
 window.openClientDetail = openClientDetail;
 window.removeExerciseEntry = removeExerciseEntry;
+window.downloadBackup = downloadBackup;
 
 console.log('app.js loaded successfully');
