@@ -2858,7 +2858,200 @@ navigateTo = function(page) {
     if (page === 'report') {
         initReportPage();
     }
+    if (page === 'dashboard') {
+        updateMonthlyGoalDisplay();
+    }
 };
+
+// ========================================
+// 月間目標設定と売上予測機能
+// ========================================
+
+let monthlyGoals = {};
+
+// 月間目標の読み込み
+const goalsData = localStorage.getItem('monthlyGoals');
+if (goalsData) {
+    monthlyGoals = JSON.parse(goalsData);
+}
+
+// 月間目標モーダルの初期化
+const monthlyGoalModal = document.getElementById('monthlyGoalModal');
+const monthlyGoalModalClose = document.getElementById('monthlyGoalModalClose');
+const monthlyGoalCancelBtn = document.getElementById('monthlyGoalCancelBtn');
+const monthlyGoalForm = document.getElementById('monthlyGoalForm');
+const setGoalBtn = document.getElementById('setGoalBtn');
+
+if (setGoalBtn) {
+    setGoalBtn.addEventListener('click', () => {
+        const today = new Date();
+        const yearMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+        document.getElementById('goalMonth').value = yearMonth;
+
+        // 既存の目標があれば読み込む
+        if (monthlyGoals[yearMonth]) {
+            document.getElementById('goalAmount').value = monthlyGoals[yearMonth].goalAmount;
+            document.getElementById('ticketPrice').value = monthlyGoals[yearMonth].ticketPrice;
+        }
+
+        monthlyGoalModal.classList.add('active');
+    });
+}
+
+if (monthlyGoalModalClose) {
+    monthlyGoalModalClose.addEventListener('click', () => {
+        monthlyGoalModal.classList.remove('active');
+    });
+}
+
+if (monthlyGoalCancelBtn) {
+    monthlyGoalCancelBtn.addEventListener('click', () => {
+        monthlyGoalModal.classList.remove('active');
+    });
+}
+
+if (monthlyGoalForm) {
+    monthlyGoalForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+
+        const goalMonth = document.getElementById('goalMonth').value;
+        const goalAmount = parseInt(document.getElementById('goalAmount').value);
+        const ticketPrice = parseInt(document.getElementById('ticketPrice').value) || 36000;
+
+        monthlyGoals[goalMonth] = {
+            goalAmount,
+            ticketPrice,
+            setDate: new Date().toISOString()
+        };
+
+        localStorage.setItem('monthlyGoals', JSON.stringify(monthlyGoals));
+
+        showNotification('月間目標を設定しました');
+        monthlyGoalModal.classList.remove('active');
+        updateMonthlyGoalDisplay();
+    });
+}
+
+// 月間目標の表示を更新
+function updateMonthlyGoalDisplay() {
+    const goalContent = document.getElementById('goalContent');
+    if (!goalContent) return;
+
+    const today = new Date();
+    const yearMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+
+    // 今月のデータを集計
+    const currentData = aggregateMonthlyData(yearMonth);
+    const currentGoal = monthlyGoals[yearMonth];
+
+    if (!currentGoal) {
+        goalContent.innerHTML = `
+            <div class="goal-empty">
+                <p>今月の売上目標を設定しましょう</p>
+            </div>
+        `;
+        return;
+    }
+
+    const goalAmount = currentGoal.goalAmount;
+    const ticketPrice = currentGoal.ticketPrice;
+    const currentRevenue = currentData.totalRevenue;
+    const achievementRate = (currentRevenue / goalAmount * 100).toFixed(1);
+    const remaining = Math.max(0, goalAmount - currentRevenue);
+    const ticketsNeeded = Math.ceil(remaining / ticketPrice);
+
+    // 売上ペースから予測
+    const today_date = today.getDate();
+    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const dailyAverage = currentRevenue / today_date;
+    const forecastRevenue = Math.round(dailyAverage * daysInMonth);
+    const forecastAchievementRate = (forecastRevenue / goalAmount * 100).toFixed(1);
+
+    const isComplete = achievementRate >= 100;
+    const progressClass = isComplete ? 'complete' : '';
+
+    goalContent.innerHTML = `
+        <div class="goal-active">
+            <div class="goal-stats">
+                <div class="goal-stat">
+                    <div class="goal-stat-label">目標金額</div>
+                    <div class="goal-stat-value">¥${goalAmount.toLocaleString()}</div>
+                </div>
+                <div class="goal-stat">
+                    <div class="goal-stat-label">現在の売上</div>
+                    <div class="goal-stat-value">¥${currentRevenue.toLocaleString()}</div>
+                </div>
+                <div class="goal-stat">
+                    <div class="goal-stat-label">達成率</div>
+                    <div class="goal-stat-value">${achievementRate}%</div>
+                </div>
+            </div>
+
+            <div class="goal-progress-section">
+                <div class="goal-progress-label">
+                    <span>進捗状況</span>
+                    <span class="goal-progress-percentage">${achievementRate}%</span>
+                </div>
+                <div class="goal-progress-bar">
+                    <div class="goal-progress-fill ${progressClass}" style="width: ${Math.min(100, achievementRate)}%"></div>
+                </div>
+                <div class="goal-progress-info">
+                    ${isComplete ?
+                        '🎉 目標達成おめでとうございます！' :
+                        `あと ¥${remaining.toLocaleString()} (チケット約${ticketsNeeded}枚分)`
+                    }
+                </div>
+            </div>
+
+            <div class="goal-forecast">
+                <h4>売上予測</h4>
+                <div class="forecast-items">
+                    <div class="forecast-item">
+                        <span class="forecast-label">1日平均売上:</span>
+                        <span class="forecast-value">¥${Math.round(dailyAverage).toLocaleString()}</span>
+                    </div>
+                    <div class="forecast-item">
+                        <span class="forecast-label">今月末予測:</span>
+                        <span class="forecast-value">¥${forecastRevenue.toLocaleString()}</span>
+                    </div>
+                    <div class="forecast-item">
+                        <span class="forecast-label">予測達成率:</span>
+                        <span class="forecast-value">${forecastAchievementRate}%</span>
+                    </div>
+                    <div class="forecast-item">
+                        <span class="forecast-label">必要チケット数:</span>
+                        <span class="forecast-value">${ticketsNeeded}枚</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // 目標達成した場合、アニメーション表示
+    if (isComplete && !sessionStorage.getItem(`goal-celebrated-${yearMonth}`)) {
+        setTimeout(() => {
+            showGoalAchievement(goalAmount, achievementRate);
+            sessionStorage.setItem(`goal-celebrated-${yearMonth}`, 'true');
+        }, 1000);
+    }
+}
+
+// 目標達成アニメーション
+function showGoalAchievement(goalAmount, achievementRate) {
+    const overlay = document.getElementById('goalAchievedOverlay');
+    const text = document.getElementById('goalAchievedText');
+
+    text.textContent = `今月の目標 ¥${goalAmount.toLocaleString()} を達成しました！（達成率: ${achievementRate}%）`;
+    overlay.classList.add('active');
+
+    const closeBtn = document.getElementById('goalAchievedClose');
+    closeBtn.onclick = () => {
+        overlay.classList.remove('active');
+    };
+}
+
+// 初回表示
+updateMonthlyGoalDisplay();
 
 // グローバル関数（HTMLから呼び出すため）
 window.openClientDetail = openClientDetail;
