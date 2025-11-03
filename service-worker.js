@@ -1,108 +1,84 @@
-const CACHE_NAME = 'pt-manager-v1';
-const urlsToCache = [
+const CACHE_NAME = 'pt-manager-v4';
+const APP_SHELL = [
   '/',
   '/index.html',
   '/style.css',
   '/app.js',
   '/manifest.json',
-  'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js'
+  '/icon-192.png',
+  '/icon-512.png',
+  'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
 ];
 
-// インストール時にキャッシュを作成
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => {
-        console.log('Opened cache');
-        return cache.addAll(urlsToCache);
-      })
+    caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL))
   );
   self.skipWaiting();
 });
 
-// リクエストをキャッシュから返す
-self.addEventListener('fetch', event => {
-  event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        // キャッシュにあればそれを返す
-        if (response) {
-          return response;
-        }
-
-        return fetch(event.request).then(response => {
-          // 有効なレスポンスかチェック
-          if (!response || response.status !== 200 || response.type !== 'basic') {
-            return response;
-          }
-
-          // レスポンスをクローンしてキャッシュに保存
-          const responseToCache = response.clone();
-          caches.open(CACHE_NAME)
-            .then(cache => {
-              cache.put(event.request, responseToCache);
-            });
-
-          return response;
-        });
-      })
-  );
-});
-
-// 古いキャッシュを削除
 self.addEventListener('activate', event => {
-  const cacheWhitelist = [CACHE_NAME];
-
   event.waitUntil(
-    caches.keys().then(cacheNames => {
+    caches.keys().then(keys => {
       return Promise.all(
-        cacheNames.map(cacheName => {
-          if (cacheWhitelist.indexOf(cacheName) === -1) {
-            return caches.delete(cacheName);
-          }
-        })
+        keys
+          .filter(key => key !== CACHE_NAME)
+          .map(key => caches.delete(key))
       );
     })
   );
-
   self.clients.claim();
 });
 
-// バックグラウンド同期（将来の拡張用）
-self.addEventListener('sync', event => {
-  if (event.tag === 'sync-clients') {
-    event.waitUntil(syncClientsData());
+self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET') {
+    return;
+  }
+
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => cacheClone(event.request, response))
+        .catch(() => caches.match('/index.html'))
+    );
+    return;
+  }
+
+  event.respondWith(
+    caches.match(event.request).then(cached => {
+      if (cached) {
+        return cached;
+      }
+
+      return fetch(event.request)
+        .then(response => cacheClone(event.request, response))
+        .catch(() => {
+          if (event.request.destination === 'document') {
+            return caches.match('/index.html');
+          }
+          return undefined;
+        });
+    })
+  );
+});
+
+self.addEventListener('message', event => {
+  if (event.data === 'SKIP_WAITING') {
+    self.skipWaiting();
   }
 });
 
-async function syncClientsData() {
-  // Google Driveとの同期処理（後で実装）
-  console.log('Syncing clients data...');
+function cacheClone(request, response) {
+  if (
+    !response ||
+    response.status !== 200 ||
+    response.type === 'opaque'
+  ) {
+    return response;
+  }
+
+  const copy = response.clone();
+  caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
+  return response;
 }
-
-// 通知処理
-self.addEventListener('push', event => {
-  const options = {
-    body: event.data ? event.data.text() : '新しい通知があります',
-    icon: 'icon-192.png',
-    badge: 'icon-192.png',
-    vibrate: [200, 100, 200],
-    data: {
-      dateOfArrival: Date.now(),
-      primaryKey: 1
-    }
-  };
-
-  event.waitUntil(
-    self.registration.showNotification('PT Manager', options)
-  );
-});
-
-// 通知クリック時の処理
-self.addEventListener('notificationclick', event => {
-  event.notification.close();
-
-  event.waitUntil(
-    clients.openWindow('/')
-  );
-});

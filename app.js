@@ -9,8 +9,11 @@ let charts = {
     weight: null,
     bodyFat: null,
     muscleMass: null,
-    bmr: null
+    bmr: null,
+    integrated: null
 };
+
+let deferredInstallPrompt = null;
 
 // Google API関連
 let googleAccessToken = null;
@@ -120,8 +123,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // LocalStorageからデータ読み込み
     loadFromLocalStorage();
 
+    // 既存セッションデータにBMRを追加（マイグレーション）
+    migrateSessionsWithBMR();
+
     // イベントリスナー設定
     setupEventListeners();
+    setupPwaInstallPrompt();
+    document.addEventListener('sw:updated', () => {
+        showNotification('最新バージョンを読み込むため再読み込みします。');
+        setTimeout(() => window.location.reload(), 1500);
+    });
 
     // 初期画面描画
     renderDashboard();
@@ -190,6 +201,9 @@ function setupEventListeners() {
     // チケット購入ボタン
     document.getElementById('addTicketBtn').addEventListener('click', openTicketModal);
 
+    // チケット追加購入ボタン（基本情報タブ内）
+    document.getElementById('addMoreTicketsBtn').addEventListener('click', openTicketModal);
+
     // エクササイズ追加ボタン
     document.getElementById('addExerciseBtn').addEventListener('click', addExerciseEntry);
     document.getElementById('saveTemplateBtn').addEventListener('click', saveMenuTemplate);
@@ -254,6 +268,66 @@ function setupEventListeners() {
         if (event.target.classList.contains('modal')) {
             closeAllModals();
         }
+    });
+
+    // 折りたたみセクション
+    setupCollapsibleSections();
+}
+
+// 折りたたみセクションのセットアップ
+function setupCollapsibleSections() {
+    document.querySelectorAll('.collapsible-header').forEach(header => {
+        header.addEventListener('click', function() {
+            const section = this.closest('.collapsible-section');
+            section.classList.toggle('collapsed');
+        });
+    });
+
+    // デフォルトで全て折りたたむ
+    document.querySelectorAll('.collapsible-section').forEach(section => {
+        section.classList.add('collapsed');
+    });
+}
+
+function setupPwaInstallPrompt() {
+    const installBtn = document.getElementById('pwaInstallBtn');
+    if (!installBtn) {
+        return;
+    }
+
+    window.addEventListener('beforeinstallprompt', event => {
+        event.preventDefault();
+        deferredInstallPrompt = event;
+        installBtn.hidden = false;
+    });
+
+    installBtn.addEventListener('click', async () => {
+        if (!deferredInstallPrompt) {
+            return;
+        }
+
+        installBtn.disabled = true;
+        try {
+            const result = await deferredInstallPrompt.prompt();
+            if (result && result.outcome === 'accepted') {
+                showNotification('アプリのインストールを開始しました。');
+            } else {
+                showNotification('インストールがキャンセルされました。');
+            }
+        } catch (error) {
+            console.error('Install prompt failed:', error);
+            showNotification('インストールを開始できませんでした。');
+        } finally {
+            installBtn.disabled = false;
+            installBtn.hidden = true;
+            deferredInstallPrompt = null;
+        }
+    });
+
+    window.addEventListener('appinstalled', () => {
+        installBtn.hidden = true;
+        deferredInstallPrompt = null;
+        showNotification('アプリがホーム画面に追加されました。');
     });
 }
 
@@ -625,10 +699,20 @@ function createClientCard(client) {
     const card = document.createElement('div');
     card.className = 'client-card';
 
+    // ステータス自動判定: チケット1回以上でアクティブ、0回で非アクティブ
+    if (client.tickets) {
+        if (client.tickets.remaining >= 1 && client.status !== 'アクティブ') {
+            client.status = 'アクティブ';
+            saveToLocalStorage();
+        } else if (client.tickets.remaining === 0 && client.status !== '非アクティブ') {
+            client.status = '非アクティブ';
+            saveToLocalStorage();
+        }
+    }
+
     // ステータスクラス
     let statusClass = 'active';
-    if (client.status === '休会中') statusClass = 'suspended';
-    if (client.status === '退会') statusClass = 'withdrawn';
+    if (client.status === '非アクティブ') statusClass = 'inactive';
 
     // チケット残数バッジ
     let ticketBadgeHTML = '';
@@ -660,72 +744,53 @@ function createClientCard(client) {
         `;
     }
 
-    // 次回予約日
+    // 次回予約日の表示（カード用にシンプルに）
     let nextApptHTML = '';
     if (client.nextAppointment) {
-        nextApptHTML = `<p class="next-appointment"><strong>次回予約:</strong> ${formatDateTime(new Date(client.nextAppointment))}</p>`;
-    }
-
-    // 目標達成率
-    let goalProgressHTML = '';
-    const progress = calculateGoalProgress(client);
-    if (progress && (progress.weightProgress || progress.bodyFatProgress)) {
-        const progressItems = [];
-
-        if (progress.weightProgress) {
-            const wp = progress.weightProgress;
-            const colorClass = getProgressColorClass(wp.percentage);
-            progressItems.push(`
-                <div class="goal-progress-item ${colorClass}">
-                    <div class="progress-header">
-                        <span class="progress-label">体重目標</span>
-                        <span class="progress-percentage">${wp.percentage}%</span>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" style="width: ${wp.percentage}%"></div>
-                    </div>
-                    <div class="progress-remaining">あと ${wp.remaining.toFixed(1)}kg</div>
-                </div>
-            `);
-        }
-
-        if (progress.bodyFatProgress) {
-            const bp = progress.bodyFatProgress;
-            const colorClass = getProgressColorClass(bp.percentage);
-            progressItems.push(`
-                <div class="goal-progress-item ${colorClass}">
-                    <div class="progress-header">
-                        <span class="progress-label">体脂肪率目標</span>
-                        <span class="progress-percentage">${bp.percentage}%</span>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" style="width: ${bp.percentage}%"></div>
-                    </div>
-                    <div class="progress-remaining">あと ${bp.remaining.toFixed(1)}%</div>
-                </div>
-            `);
-        }
-
-        goalProgressHTML = `<div class="goal-progress-container">${progressItems.join('')}</div>`;
+        const apptDate = new Date(client.nextAppointment);
+        const month = apptDate.getMonth() + 1;
+        const day = apptDate.getDate();
+        const hours = apptDate.getHours().toString().padStart(2, '0');
+        const minutes = apptDate.getMinutes().toString().padStart(2, '0');
+        nextApptHTML = `
+            <div class="client-card-next-appt">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+                <span>${month}/${day} ${hours}:${minutes}</span>
+            </div>
+        `;
+    } else {
+        nextApptHTML = `
+            <div class="client-card-next-appt no-appointment">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+                <span>予約なし</span>
+            </div>
+        `;
     }
 
     card.innerHTML = `
         <div class="client-card-body">
             <div class="client-card-header">
-                <div>
-                    <div class="client-name">${client.name}</div>
-                    <small>${client.phone}</small>
-                </div>
+                <div class="client-name">${client.name}</div>
                 <span class="client-status ${statusClass}">${client.status || 'アクティブ'}</span>
             </div>
             ${nextApptHTML}
-            ${goalProgressHTML}
-            ${medicalWarningHTML}
         </div>
         ${ticketBadgeHTML}
     `;
 
-    card.addEventListener('click', () => openClientDetail(client.id));
+    card.addEventListener('click', () => {
+        openClientDetail(client.id);
+    });
 
     return card;
 }
@@ -782,6 +847,16 @@ function openAddClientModal() {
     // 基本情報タブに切り替え
     switchModalTab('info');
 
+    // 新規登録時はセッション履歴・進捗グラフ・チケット管理タブを非表示
+    document.querySelectorAll('.modal-tab').forEach(tab => {
+        const tabName = tab.getAttribute('data-tab');
+        if (tabName === 'sessions' || tabName === 'progress' || tabName === 'tickets') {
+            tab.style.display = 'none';
+        } else {
+            tab.style.display = 'inline-block';
+        }
+    });
+
     // モーダルを表示
     document.getElementById('clientModal').classList.add('active');
 }
@@ -794,6 +869,11 @@ function openClientDetail(clientId) {
     document.getElementById('modalTitle').textContent = client.name + ' - 顧客情報';
     document.getElementById('deleteBtn').style.display = 'inline-flex';
 
+    // 既存顧客を開く時は全てのタブを表示
+    document.querySelectorAll('.modal-tab').forEach(tab => {
+        tab.style.display = 'inline-block';
+    });
+
     // 基本情報を設定
     document.getElementById('clientId').value = client.id;
     document.getElementById('name').value = client.name || '';
@@ -802,14 +882,28 @@ function openClientDetail(clientId) {
     document.getElementById('birthdate').value = client.birthdate || '';
     document.getElementById('phone').value = client.phone || '';
     document.getElementById('email').value = client.email || '';
-    document.getElementById('address').value = client.address || '';
-    document.getElementById('emergencyContact').value = client.emergencyContact || '';
-    document.getElementById('emergencyPhone').value = client.emergencyPhone || '';
     document.getElementById('goalDate').value = client.goalDate || '';
     document.getElementById('goalWeight').value = client.goalWeight || '';
     document.getElementById('goalBodyFat').value = client.goalBodyFat || '';
     document.getElementById('goal').value = client.goal || '';
     document.getElementById('medicalNotes').value = client.medicalNotes || '';
+
+    // チケット情報の表示/入力切り替え
+    const ticketInfoDisplay = document.getElementById('ticketInfoDisplay');
+    const ticketInfoInput = document.getElementById('ticketInfoInput');
+
+    if (client.tickets && client.tickets.remaining !== undefined) {
+        // 既存顧客：チケット残数表示 + 追加購入ボタン
+        ticketInfoDisplay.style.display = 'block';
+        ticketInfoInput.style.display = 'none';
+        document.getElementById('currentTicketCount').textContent = client.tickets.remaining;
+    } else {
+        // チケット情報がない場合：入力欄を表示
+        ticketInfoDisplay.style.display = 'none';
+        ticketInfoInput.style.display = 'block';
+        document.getElementById('initialTickets').value = '';
+        document.getElementById('initialTicketPrice').value = '';
+    }
 
     // 特記事項の警告表示
     if (client.medicalNotes && client.medicalNotes.trim() !== '') {
@@ -884,8 +978,10 @@ function handleClientFormSubmit(e) {
     e.preventDefault();
 
     // パーソナルを受ける目的
-    const trainingPurpose = document.getElementById('trainingPurpose').value;
-    const otherPurpose = document.getElementById('otherPurpose').value;
+    const trainingPurposeEl = document.getElementById('trainingPurpose');
+    const otherPurposeEl = document.getElementById('otherPurpose');
+    const trainingPurpose = trainingPurposeEl?.value || '';
+    const otherPurpose = otherPurposeEl?.value || '';
     const finalPurpose = trainingPurpose === 'その他' && otherPurpose ? otherPurpose : trainingPurpose;
 
     const clientData = {
@@ -896,17 +992,17 @@ function handleClientFormSubmit(e) {
         birthdate: document.getElementById('birthdate').value,
         age: calculateAge(document.getElementById('birthdate').value),
         phone: document.getElementById('phone').value,
-        email: document.getElementById('email').value,
-        address: document.getElementById('address').value,
-        emergencyContact: document.getElementById('emergencyContact').value,
-        emergencyPhone: document.getElementById('emergencyPhone').value,
-        trainingPurpose: finalPurpose,
+        email: document.getElementById('email').value || '',
+        address: document.getElementById('address')?.value || '',
+        emergencyContact: document.getElementById('emergencyContact')?.value || '',
+        emergencyPhone: document.getElementById('emergencyPhone')?.value || '',
+        trainingPurpose: finalPurpose || '',
         goalDate: document.getElementById('goalDate').value,
         goalWeight: parseFloat(document.getElementById('goalWeight').value) || null,
         goalBodyFat: parseFloat(document.getElementById('goalBodyFat').value) || null,
         goal: document.getElementById('goal').value,
-        alcoholConsumption: document.getElementById('alcoholConsumption').value,
-        smokingHabit: document.getElementById('smokingHabit').value,
+        alcoholConsumption: document.getElementById('alcoholConsumption')?.value || '',
+        smokingHabit: document.getElementById('smokingHabit')?.value || '',
         medicalNotes: document.getElementById('medicalNotes').value,
         status: 'アクティブ'
     };
@@ -920,11 +1016,69 @@ function handleClientFormSubmit(e) {
             ...existingClient,
             ...clientData
         };
+
+        // 既存顧客のチケット情報を更新（入力欄が表示されている場合のみ）
+        const ticketInfoInput = document.getElementById('ticketInfoInput');
+        if (ticketInfoInput.style.display !== 'none') {
+            const initialTickets = parseInt(document.getElementById('initialTickets').value) || 0;
+
+            if (initialTickets > 0) {
+                if (!clients[index].tickets) {
+                    clients[index].tickets = { remaining: 0, total: 0 };
+                }
+                if (!clients[index].ticketHistory) {
+                    clients[index].ticketHistory = [];
+                }
+
+                clients[index].tickets.remaining += initialTickets;
+                clients[index].tickets.total += initialTickets;
+
+                // チケット料金を自動設定
+                let ticketPrice = 0;
+                if (initialTickets === 1) ticketPrice = 9000;
+                else if (initialTickets === 4) ticketPrice = 36000;
+                else if (initialTickets === 8) ticketPrice = 70000;
+
+                clients[index].ticketHistory.push({
+                    id: 'ticket_' + Date.now(),
+                    date: new Date().toISOString(),
+                    count: initialTickets,
+                    price: ticketPrice,
+                    paymentMethod: 'その他',
+                    paymentStatus: '完了'
+                });
+            }
+        }
     } else {
         // 新規追加
-        clientData.tickets = { remaining: 0, total: 0 };
         clientData.sessions = [];
         clientData.ticketHistory = [];
+
+        // 初回チケット情報を取得
+        const initialTickets = parseInt(document.getElementById('initialTickets').value) || 0;
+
+        clientData.tickets = {
+            remaining: initialTickets,
+            total: initialTickets
+        };
+
+        // チケット料金を自動設定
+        let ticketPrice = 0;
+        if (initialTickets === 1) ticketPrice = 9000;
+        else if (initialTickets === 4) ticketPrice = 36000;
+        else if (initialTickets === 8) ticketPrice = 70000;
+
+        // チケット履歴に記録
+        if (initialTickets > 0) {
+            clientData.ticketHistory.push({
+                id: 'ticket_' + Date.now(),
+                date: new Date().toISOString(),
+                count: initialTickets,
+                price: ticketPrice,
+                paymentMethod: '初回購入',
+                paymentStatus: '完了'
+            });
+        }
 
         // 初回身体測定データを取得
         const initialWeight = parseFloat(document.getElementById('initialWeight').value);
@@ -999,6 +1153,31 @@ function openSessionModal() {
     document.getElementById('sessionForm').reset();
     document.getElementById('sessionRating').value = 5;
     document.getElementById('ratingValue').textContent = '5';
+
+    // 前回のセッションデータを取得して自動入力
+    if (client.sessions && client.sessions.length > 0) {
+        const lastSession = client.sessions[client.sessions.length - 1];
+
+        // 体重
+        if (lastSession.weight) {
+            document.getElementById('sessionWeight').value = lastSession.weight;
+        }
+
+        // 体脂肪率
+        if (lastSession.bodyFat) {
+            document.getElementById('sessionBodyFat').value = lastSession.bodyFat;
+        }
+
+        // 筋肉量
+        if (lastSession.muscleMass) {
+            document.getElementById('sessionMuscleMass').value = lastSession.muscleMass;
+        }
+
+        // 基礎代謝量
+        if (lastSession.bmr || lastSession.basalMetabolism) {
+            document.getElementById('sessionBMR').value = lastSession.bmr || lastSession.basalMetabolism;
+        }
+    }
 
     // エクササイズリストをクリア
     document.getElementById('exercisesList').innerHTML = '';
@@ -1283,16 +1462,10 @@ function handleSessionFormSubmit(e) {
     // 体重・体脂肪率取得
     const weight = parseFloat(document.getElementById('sessionWeight').value);
     const bodyFat = parseFloat(document.getElementById('sessionBodyFat').value) || null;
+    const muscleMass = parseFloat(document.getElementById('sessionMuscleMass').value) || null;
 
-    // 基礎代謝を自動計算（初回セッションに基礎代謝データがある場合は初回値を基準にする）
-    let basalMetabolism = null;
-    if (client.sessions && client.sessions.length > 0) {
-        const firstSession = client.sessions[client.sessions.length - 1];
-        if (firstSession.basalMetabolism) {
-            // 初回に実測値がある場合は、体重・体脂肪率から自動計算
-            basalMetabolism = calculateBasalMetabolism(weight, bodyFat);
-        }
-    }
+    // 基礎代謝量を体組成計で測定した値から取得
+    const bmr = parseFloat(document.getElementById('sessionBMR').value) || null;
 
     // セッションデータ
     const sessionData = {
@@ -1300,8 +1473,9 @@ function handleSessionFormSubmit(e) {
         date: new Date().toISOString(),
         weight: weight,
         bodyFat: bodyFat,
-        muscleMass: parseFloat(document.getElementById('sessionMuscleMass').value) || null,
-        basalMetabolism: basalMetabolism,
+        muscleMass: muscleMass,
+        bmr: bmr,
+        basalMetabolism: bmr, // 後方互換性のため
         sleepHours: document.getElementById('sessionSleepHours').value || null,
         exercises: exercises,
         rating: parseInt(document.getElementById('sessionRating').value),
@@ -1384,19 +1558,25 @@ function renderSessionsList(client) {
             <div class="session-body">
                 <div class="session-measurements">
                     <div class="measurement-item">
-                        <span class="measurement-label">体重:</span>
-                        <span class="measurement-value">${session.weight}kg</span>
+                        <span class="measurement-label">体重</span>
+                        <span class="measurement-value-large">${session.weight}<span class="unit">kg</span></span>
                     </div>
                     ${session.bodyFat ? `
                         <div class="measurement-item">
-                            <span class="measurement-label">体脂肪率:</span>
-                            <span class="measurement-value">${session.bodyFat}%</span>
+                            <span class="measurement-label">体脂肪率</span>
+                            <span class="measurement-value-large">${session.bodyFat}<span class="unit">%</span></span>
                         </div>
                     ` : ''}
                     ${session.muscleMass ? `
                         <div class="measurement-item">
-                            <span class="measurement-label">筋肉量:</span>
-                            <span class="measurement-value">${session.muscleMass}kg</span>
+                            <span class="measurement-label">筋肉量</span>
+                            <span class="measurement-value-large">${session.muscleMass}<span class="unit">kg</span></span>
+                        </div>
+                    ` : ''}
+                    ${session.bmr || session.basalMetabolism ? `
+                        <div class="measurement-item">
+                            <span class="measurement-label">基礎代謝量</span>
+                            <span class="measurement-value-large">${session.bmr || session.basalMetabolism}<span class="unit">kcal</span></span>
                         </div>
                     ` : ''}
                 </div>
@@ -1438,6 +1618,9 @@ function renderProgressCharts(client) {
     const weights = sessionsToShow.map(s => s.weight);
     const bodyFats = sessionsToShow.map(s => s.bodyFat).filter(v => v !== null);
     const muscleMasses = sessionsToShow.map(s => s.muscleMass).filter(v => v !== null);
+
+    // 統合グラフを描画
+    renderIntegratedChart(client, sessionsToShow, labels);
 
     // 体重グラフ
     const weightCtx = document.getElementById('weightChart');
@@ -1634,6 +1817,194 @@ function renderProgressCharts(client) {
             }
         });
     }
+}
+
+// 統合グラフを描画（4つの指標を1つのグラフに）
+function renderIntegratedChart(client, sessionsToShow, labels) {
+    const ctx = document.getElementById('integratedChart');
+    if (!ctx) return;
+
+    if (charts.integrated) charts.integrated.destroy();
+
+    // データ取得
+    const weights = sessionsToShow.map(s => s.weight);
+    const bodyFats = sessionsToShow.map(s => s.bodyFat);
+    const muscleMasses = sessionsToShow.map(s => s.muscleMass);
+    const bmrs = sessionsToShow.map(s => s.bmr);
+
+    const datasets = [
+        // 体重
+        {
+            label: '体重 (kg)',
+            data: weights,
+            borderColor: '#ef4444',
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            borderWidth: 3,
+            tension: 0.4,
+            fill: false,
+            pointRadius: 6,
+            pointHoverRadius: 8,
+            pointBackgroundColor: '#ef4444',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            yAxisID: 'y'
+        },
+        // 体脂肪率
+        {
+            label: '体脂肪率 (%)',
+            data: bodyFats,
+            borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            borderWidth: 3,
+            tension: 0.4,
+            fill: false,
+            pointRadius: 6,
+            pointHoverRadius: 8,
+            pointBackgroundColor: '#3b82f6',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            yAxisID: 'y1'
+        },
+        // 筋肉量
+        {
+            label: '筋肉量 (kg)',
+            data: muscleMasses,
+            borderColor: '#10b981',
+            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+            borderWidth: 3,
+            tension: 0.4,
+            fill: false,
+            pointRadius: 6,
+            pointHoverRadius: 8,
+            pointBackgroundColor: '#10b981',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            yAxisID: 'y'
+        },
+        // 基礎代謝量
+        {
+            label: '基礎代謝量 (kcal)',
+            data: bmrs,
+            borderColor: '#f59e0b',
+            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+            borderWidth: 3,
+            tension: 0.4,
+            fill: false,
+            pointRadius: 6,
+            pointHoverRadius: 8,
+            pointBackgroundColor: '#f59e0b',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            yAxisID: 'y1'
+        }
+    ];
+
+    // 目標値を追加（破線）
+    if (client.goalWeight) {
+        datasets.push({
+            label: '目標体重',
+            data: new Array(weights.length).fill(client.goalWeight),
+            borderColor: '#ef4444',
+            borderWidth: 2,
+            borderDash: [10, 5],
+            pointRadius: 0,
+            fill: false,
+            yAxisID: 'y'
+        });
+    }
+
+    if (client.goalBodyFat) {
+        datasets.push({
+            label: '目標体脂肪率',
+            data: new Array(bodyFats.length).fill(client.goalBodyFat),
+            borderColor: '#3b82f6',
+            borderWidth: 2,
+            borderDash: [10, 5],
+            pointRadius: 0,
+            fill: false,
+            yAxisID: 'y1'
+        });
+    }
+
+    charts.integrated = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            plugins: {
+                legend: {
+                    display: false // カスタム凡例を使用
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    titleColor: '#fff',
+                    bodyColor: '#fff',
+                    borderColor: '#fff',
+                    borderWidth: 1,
+                    padding: 12,
+                    displayColors: true,
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.parsed.y !== null) {
+                                label += context.parsed.y.toFixed(1);
+                            }
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    type: 'linear',
+                    position: 'left',
+                    title: {
+                        display: true,
+                        text: '開始時の値',
+                        font: {
+                            size: 14,
+                            weight: 'bold'
+                        },
+                        color: '#1e293b'
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    }
+                },
+                y1: {
+                    type: 'linear',
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: '目標値',
+                        font: {
+                            size: 14,
+                            weight: 'bold'
+                        },
+                        color: '#f59e0b'
+                    },
+                    grid: {
+                        drawOnChartArea: false
+                    }
+                }
+            },
+            animation: {
+                duration: 2000,
+                easing: 'easeInOutQuart'
+            }
+        }
+    });
 }
 
 // ========================================
@@ -2322,6 +2693,38 @@ function loadFromLocalStorage() {
     } catch (e) {
         console.error('データ読み込みエラー:', e);
         clients = [];
+    }
+}
+
+// 既存セッションデータにBMRを追加するマイグレーション関数
+function migrateSessionsWithBMR() {
+    let updated = false;
+
+    clients.forEach(client => {
+        if (client.sessions && client.sessions.length > 0) {
+            client.sessions.forEach(session => {
+                // BMRがまだ計算されていない場合
+                if (!session.bmr && session.weight && session.bodyFat) {
+                    const age = calculateAge(new Date(client.birthday));
+                    const gender = client.gender || '男性';
+
+                    if (gender === '男性') {
+                        session.bmr = Math.round(88.362 + (13.397 * session.weight) + (4.799 * 170) - (5.677 * age));
+                    } else {
+                        session.bmr = Math.round(447.593 + (9.247 * session.weight) + (3.098 * 160) - (4.330 * age));
+                    }
+
+                    // 後方互換性のため
+                    session.basalMetabolism = session.bmr;
+                    updated = true;
+                }
+            });
+        }
+    });
+
+    if (updated) {
+        saveToLocalStorage();
+        console.log('既存セッションデータにBMRを追加しました');
     }
 }
 
@@ -3609,8 +4012,11 @@ navigateTo = function(page) {
     if (page === 'report') {
         initReportPage();
     }
-    if (page === 'dashboard') {
+    if (page === 'home') {
         updateMonthlyGoalDisplay();
+    }
+    if (page === 'dashboard') {
+        initDashboard();
     }
     if (page === 'settings') {
         updateCustomExerciseList();
@@ -3620,6 +4026,505 @@ navigateTo = function(page) {
         initAIClientSelect();
     }
 };
+
+// ========================================
+// ダッシュボード機能
+// ========================================
+
+let dashboardCharts = {
+    revenue: null,
+    sessions: null,
+    ticketType: null,
+    topClients: null
+};
+
+function initDashboard() {
+    updateDashboardStats();
+    updateDashboardCharts();
+    updateRiskClientsList();
+}
+
+function updateDashboardStats() {
+    const now = new Date();
+    const thisMonth = now.getMonth();
+    const thisYear = now.getFullYear();
+
+    // 総顧客数
+    const totalClients = clients.length;
+    document.getElementById('dashTotalClients').textContent = totalClients;
+
+    // 今月追加された顧客数
+    const newClientsThisMonth = clients.filter(c => {
+        const joinDate = new Date(c.joinDate || c.createdAt);
+        return joinDate.getMonth() === thisMonth && joinDate.getFullYear() === thisYear;
+    }).length;
+
+    const clientsChange = document.getElementById('dashClientsChange');
+    if (newClientsThisMonth > 0) {
+        clientsChange.textContent = `+${newClientsThisMonth} 今月`;
+        clientsChange.className = 'stat-change positive';
+    } else {
+        clientsChange.textContent = '±0 今月';
+        clientsChange.className = 'stat-change';
+    }
+
+    // アクティブ顧客数（30日以内にセッションあり）
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const activeClients = clients.filter(c => {
+        if (!c.sessions || c.sessions.length === 0) return false;
+        const lastSession = new Date(c.sessions[0].date);
+        return lastSession >= thirtyDaysAgo;
+    }).length;
+    document.getElementById('dashActiveClients').textContent = activeClients;
+
+    // 今月の売上
+    let monthlyRevenue = 0;
+    let lastMonthRevenue = 0;
+
+    clients.forEach(client => {
+        if (client.tickets) {
+            client.tickets.forEach(ticket => {
+                const ticketDate = new Date(ticket.purchaseDate);
+                if (ticketDate.getMonth() === thisMonth && ticketDate.getFullYear() === thisYear) {
+                    monthlyRevenue += ticket.price;
+                }
+                // 先月の売上
+                const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1;
+                const lastMonthYear = thisMonth === 0 ? thisYear - 1 : thisYear;
+                if (ticketDate.getMonth() === lastMonth && ticketDate.getFullYear() === lastMonthYear) {
+                    lastMonthRevenue += ticket.price;
+                }
+            });
+        }
+    });
+
+    document.getElementById('dashMonthlyRevenue').textContent = `¥${monthlyRevenue.toLocaleString()}`;
+
+    // 先月比
+    const revenueChange = document.getElementById('dashRevenueChange');
+    if (lastMonthRevenue > 0) {
+        const changePercent = ((monthlyRevenue - lastMonthRevenue) / lastMonthRevenue * 100).toFixed(1);
+        revenueChange.textContent = `先月比: ${changePercent > 0 ? '+' : ''}${changePercent}%`;
+        revenueChange.className = changePercent >= 0 ? 'stat-change positive' : 'stat-change negative';
+    } else {
+        revenueChange.textContent = '先月比: -';
+        revenueChange.className = 'stat-change';
+    }
+
+    // 今月のセッション数
+    let monthlySessions = 0;
+    clients.forEach(client => {
+        if (client.sessions) {
+            monthlySessions += client.sessions.filter(s => {
+                const sessionDate = new Date(s.date);
+                return sessionDate.getMonth() === thisMonth && sessionDate.getFullYear() === thisYear;
+            }).length;
+        }
+    });
+
+    document.getElementById('dashMonthlySessions').textContent = `${monthlySessions}回`;
+
+    // 一人当たり平均セッション数
+    const avgSessions = activeClients > 0 ? (monthlySessions / activeClients).toFixed(1) : 0;
+    document.getElementById('dashAvgSessionsPerClient').textContent = avgSessions;
+
+    // チケット消化率
+    let totalTickets = 0;
+    let usedTickets = 0;
+
+    clients.forEach(client => {
+        if (client.tickets) {
+            client.tickets.forEach(ticket => {
+                totalTickets += ticket.sessions;
+                usedTickets += ticket.used;
+            });
+        }
+    });
+
+    const usageRate = totalTickets > 0 ? ((usedTickets / totalTickets) * 100).toFixed(1) : 0;
+    document.getElementById('dashTicketUsageRate').textContent = `${usageRate}%`;
+    document.getElementById('dashUsedTickets').textContent = usedTickets;
+    document.getElementById('dashTotalTickets').textContent = totalTickets;
+
+    // 離脱リスク顧客
+    const churnRiskClients = clients.filter(c => {
+        if (!c.sessions || c.sessions.length === 0) return false;
+        const lastSession = new Date(c.sessions[0].date);
+        return lastSession < thirtyDaysAgo;
+    }).length;
+    document.getElementById('dashChurnRisk').textContent = `${churnRiskClients}人`;
+
+    // トレーニング効果分析
+    calculateTrainingEffectiveness();
+}
+
+function calculateTrainingEffectiveness() {
+    let totalWeightLoss = 0;
+    let totalBodyFatLoss = 0;
+    let clientsWithWeightData = 0;
+    let clientsWithBodyFatData = 0;
+    let goalsAchieved = 0;
+    let clientsWithGoals = 0;
+    let totalRatings = 0;
+    let ratingsCount = 0;
+
+    clients.forEach(client => {
+        if (client.sessions && client.sessions.length > 0) {
+            // 体重減少
+            const sessionsWithWeight = client.sessions.filter(s => s.weight).sort((a, b) => new Date(a.date) - new Date(b.date));
+            if (sessionsWithWeight.length >= 2) {
+                const firstWeight = sessionsWithWeight[0].weight;
+                const lastWeight = sessionsWithWeight[sessionsWithWeight.length - 1].weight;
+                totalWeightLoss += (firstWeight - lastWeight);
+                clientsWithWeightData++;
+            }
+
+            // 体脂肪率減少
+            const sessionsWithBodyFat = client.sessions.filter(s => s.bodyFat).sort((a, b) => new Date(a.date) - new Date(b.date));
+            if (sessionsWithBodyFat.length >= 2) {
+                const firstBodyFat = sessionsWithBodyFat[0].bodyFat;
+                const lastBodyFat = sessionsWithBodyFat[sessionsWithBodyFat.length - 1].bodyFat;
+                totalBodyFatLoss += (firstBodyFat - lastBodyFat);
+                clientsWithBodyFatData++;
+            }
+
+            // 目標達成
+            if (client.goalWeight && sessionsWithWeight.length > 0) {
+                clientsWithGoals++;
+                const currentWeight = sessionsWithWeight[sessionsWithWeight.length - 1].weight;
+                if (currentWeight <= client.goalWeight) {
+                    goalsAchieved++;
+                }
+            }
+
+            // セッション評価
+            client.sessions.forEach(s => {
+                if (s.rating) {
+                    totalRatings += s.rating;
+                    ratingsCount++;
+                }
+            });
+        }
+    });
+
+    // 平均値の表示
+    const avgWeightLoss = clientsWithWeightData > 0 ? (totalWeightLoss / clientsWithWeightData).toFixed(1) : 0;
+    document.getElementById('avgWeightLoss').textContent = `-${avgWeightLoss}kg`;
+
+    const avgBodyFatLoss = clientsWithBodyFatData > 0 ? (totalBodyFatLoss / clientsWithBodyFatData).toFixed(1) : 0;
+    document.getElementById('avgBodyFatLoss').textContent = `-${avgBodyFatLoss}%`;
+
+    const achievementRate = clientsWithGoals > 0 ? ((goalsAchieved / clientsWithGoals) * 100).toFixed(1) : 0;
+    document.getElementById('goalAchievementRate').textContent = `${achievementRate}%`;
+
+    const avgRating = ratingsCount > 0 ? (totalRatings / ratingsCount).toFixed(1) : 0;
+    document.getElementById('avgSessionRating').textContent = `${avgRating}/10`;
+}
+
+function updateDashboardCharts() {
+    // 月別売上推移
+    createRevenueChart();
+
+    // 月別セッション数推移
+    createSessionsChart();
+
+    // チケット種類別売上
+    createTicketTypeChart();
+
+    // 顧客別売上TOP10
+    createTopClientsChart();
+}
+
+function createRevenueChart() {
+    const ctx = document.getElementById('revenueChartDashboard');
+    if (!ctx) return;
+
+    if (dashboardCharts.revenue) dashboardCharts.revenue.destroy();
+
+    // 過去12ヶ月のデータを生成
+    const now = new Date();
+    const labels = [];
+    const data = [];
+
+    for (let i = 11; i >= 0; i--) {
+        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const month = date.getMonth();
+        const year = date.getFullYear();
+        labels.push(`${year}/${String(month + 1).padStart(2, '0')}`);
+
+        let monthRevenue = 0;
+        clients.forEach(client => {
+            if (client.tickets) {
+                client.tickets.forEach(ticket => {
+                    const ticketDate = new Date(ticket.purchaseDate);
+                    if (ticketDate.getMonth() === month && ticketDate.getFullYear() === year) {
+                        monthRevenue += ticket.price;
+                    }
+                });
+            }
+        });
+        data.push(monthRevenue);
+    }
+
+    dashboardCharts.revenue = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '売上 (円)',
+                data: data,
+                borderColor: '#3b82f6',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                tension: 0.4,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return '¥' + value.toLocaleString();
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function createSessionsChart() {
+    const ctx = document.getElementById('sessionsChartDashboard');
+    if (!ctx) return;
+
+    if (dashboardCharts.sessions) dashboardCharts.sessions.destroy();
+
+    const now = new Date();
+    const labels = [];
+    const data = [];
+
+    for (let i = 11; i >= 0; i--) {
+        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const month = date.getMonth();
+        const year = date.getFullYear();
+        labels.push(`${year}/${String(month + 1).padStart(2, '0')}`);
+
+        let monthSessions = 0;
+        clients.forEach(client => {
+            if (client.sessions) {
+                monthSessions += client.sessions.filter(s => {
+                    const sessionDate = new Date(s.date);
+                    return sessionDate.getMonth() === month && sessionDate.getFullYear() === year;
+                }).length;
+            }
+        });
+        data.push(monthSessions);
+    }
+
+    dashboardCharts.sessions = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'セッション数',
+                data: data,
+                backgroundColor: '#10b981',
+                borderRadius: 8
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            }
+        }
+    });
+}
+
+function createTicketTypeChart() {
+    const ctx = document.getElementById('ticketTypeChart');
+    if (!ctx) return;
+
+    if (dashboardCharts.ticketType) dashboardCharts.ticketType.destroy();
+
+    // チケット種類別の売上を集計
+    const ticketTypes = {};
+
+    clients.forEach(client => {
+        if (client.tickets) {
+            client.tickets.forEach(ticket => {
+                const typeName = ticket.type || '通常チケット';
+                if (!ticketTypes[typeName]) {
+                    ticketTypes[typeName] = 0;
+                }
+                ticketTypes[typeName] += ticket.price;
+            });
+        }
+    });
+
+    const labels = Object.keys(ticketTypes);
+    const data = Object.values(ticketTypes);
+    const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+
+    dashboardCharts.ticketType = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: data,
+                backgroundColor: colors.slice(0, labels.length),
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'right'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.label + ': ¥' + context.parsed.toLocaleString();
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function createTopClientsChart() {
+    const ctx = document.getElementById('topClientsChart');
+    if (!ctx) return;
+
+    if (dashboardCharts.topClients) dashboardCharts.topClients.destroy();
+
+    // 顧客別の総売上を計算
+    const clientRevenue = clients.map(client => {
+        let revenue = 0;
+        if (client.tickets) {
+            client.tickets.forEach(ticket => {
+                revenue += ticket.price;
+            });
+        }
+        return {
+            name: client.name,
+            revenue: revenue
+        };
+    }).filter(c => c.revenue > 0)
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 10);
+
+    const labels = clientRevenue.map(c => c.name);
+    const data = clientRevenue.map(c => c.revenue);
+
+    dashboardCharts.topClients = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '総売上 (円)',
+                data: data,
+                backgroundColor: '#3b82f6',
+                borderRadius: 8
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y',
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return '¥' + context.parsed.x.toLocaleString();
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return '¥' + value.toLocaleString();
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function updateRiskClientsList() {
+    const container = document.getElementById('riskClientsList');
+    if (!container) return;
+
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const riskClients = clients.filter(c => {
+        if (!c.sessions || c.sessions.length === 0) return false;
+        const lastSession = new Date(c.sessions[0].date);
+        return lastSession < thirtyDaysAgo;
+    }).sort((a, b) => {
+        const aLast = new Date(a.sessions[0].date);
+        const bLast = new Date(b.sessions[0].date);
+        return aLast - bLast;
+    });
+
+    container.innerHTML = '';
+
+    if (riskClients.length === 0) {
+        return; // CSSの::beforeで「顧客なし」メッセージが表示される
+    }
+
+    riskClients.forEach(client => {
+        const lastSessionDate = new Date(client.sessions[0].date);
+        const daysSince = Math.floor((now - lastSessionDate) / (1000 * 60 * 60 * 24));
+
+        const card = document.createElement('div');
+        card.className = 'risk-client-card';
+        card.innerHTML = `
+            <div class="risk-client-info">
+                <div class="risk-client-avatar">${client.name.charAt(0)}</div>
+                <div class="risk-client-details">
+                    <h4>${client.name}</h4>
+                    <p>最終セッション: ${daysSince}日前 (${formatDate(lastSessionDate)})</p>
+                </div>
+            </div>
+            <div class="risk-client-actions">
+                <button class="btn btn-secondary btn-small" onclick="openClientDetail('${client.id}')">詳細を見る</button>
+            </div>
+        `;
+        container.appendChild(card);
+    });
+}
 
 // グローバル関数（HTMLから呼び出すため）
 window.openClientDetail = openClientDetail;

@@ -286,7 +286,8 @@ body {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: 24px;
-    margin-bottom: 40px;
+    margin: 0 auto 40px auto;
+    max-width: 1200px;
 }
 
 .stat-card {
@@ -480,6 +481,8 @@ body {
     width: 100%;
     height: 4px;
     background: linear-gradient(90deg, var(--accent-blue) 0%, var(--accent-gold) 100%);
+    pointer-events: none;
+    z-index: 0;
 }
 
 .client-card:hover {
@@ -522,14 +525,33 @@ body {
     color: var(--success-green);
 }
 
-.client-status.suspended {
-    background: rgba(243, 156, 18, 0.15);
-    color: var(--warning-orange);
+.client-status.inactive {
+    background: rgba(148, 163, 184, 0.15);
+    color: #64748b;
 }
 
-.client-status.withdrawn {
-    background: rgba(231, 76, 60, 0.15);
-    color: var(--danger-red);
+/* 次回予約表示 */
+.client-card-next-appt {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--navy-primary);
+    font-size: 14px;
+    font-weight: 500;
+    margin-top: 8px;
+}
+
+.client-card-next-appt svg {
+    flex-shrink: 0;
+    stroke: var(--accent-blue);
+}
+
+.client-card-next-appt.no-appointment {
+    color: var(--silver-medium);
+}
+
+.client-card-next-appt.no-appointment svg {
+    stroke: var(--silver-medium);
 }
 
 .ticket-badge {
@@ -579,6 +601,7 @@ body {
     padding: 20px;
     border-left: 3px solid;
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 249, 250, 0.95) 100%);
+    pointer-events: none;
 }
 
 .ticket-badge-large.low {
@@ -831,6 +854,12 @@ body {
     color: var(--navy-primary);
 }
 
+.modal-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
 .modal-close {
     background: none;
     border: none;
@@ -844,6 +873,15 @@ body {
 .modal-close:hover {
     background: var(--off-white);
     color: var(--navy-primary);
+}
+
+/* 読み取り専用フォーム */
+.read-only input:disabled,
+.read-only select:disabled,
+.read-only textarea:disabled {
+    background: var(--slate-50);
+    cursor: not-allowed;
+    opacity: 0.7;
 }
 
 .modal-close svg {
@@ -954,6 +992,54 @@ body {
     border-bottom: 2px solid var(--silver-light);
 }
 
+/* 折りたたみ式セクション */
+.collapsible-section {
+    overflow: hidden;
+}
+
+.collapsible-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+    transition: all var(--transition-base);
+    margin-bottom: 0;
+    padding-bottom: 12px;
+}
+
+.collapsible-header:hover {
+    color: var(--accent-blue);
+}
+
+.collapse-icon {
+    transition: transform var(--transition-base);
+    flex-shrink: 0;
+}
+
+.collapsible-section.collapsed .collapse-icon {
+    transform: rotate(-90deg);
+}
+
+.collapsible-content {
+    max-height: 2000px;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+    opacity: 1;
+}
+
+.collapsible-section.collapsed .collapsible-content {
+    max-height: 0;
+    opacity: 0;
+    margin-top: 0;
+}
+
+.collapsible-section.collapsed .collapsible-header {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
 .form-row {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -962,6 +1048,46 @@ body {
 
 .form-group {
     margin-bottom: 20px;
+}
+
+/* チケット情報表示 */
+.ticket-info-display {
+    text-align: center;
+}
+
+.ticket-summary {
+    background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-gold) 100%);
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 20px;
+}
+
+.ticket-summary-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.ticket-summary-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: white;
+    opacity: 0.9;
+}
+
+.ticket-summary-value {
+    font-size: 48px;
+    font-weight: 900;
+    color: white;
+    line-height: 1;
+}
+
+.ticket-summary-unit {
+    font-size: 16px;
+    font-weight: 600;
+    color: white;
+    opacity: 0.9;
 }
 
 .form-group label {
@@ -1174,21 +1300,43 @@ body {
 
 .measurement-item {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 8px;
-    padding: 8px 14px;
+    justify-content: center;
+    gap: 4px;
+    padding: 16px;
     background: var(--white);
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
+    border-radius: 12px;
+    min-width: 120px;
 }
 
 .measurement-label {
     color: var(--silver-dark);
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .measurement-value {
     color: var(--navy-primary);
+}
+
+.measurement-value-large {
+    color: var(--navy-primary);
+    font-size: 32px;
+    font-weight: 700;
+    line-height: 1;
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+}
+
+.measurement-value-large .unit {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--silver-dark);
+    margin-left: 2px;
 }
 
 .session-exercises {
@@ -2939,4 +3087,631 @@ html {
 @keyframes spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
+}
+
+/* ========================================
+   ダッシュボードページ
+   ======================================== */
+
+.dashboard-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+    margin-bottom: 32px;
+}
+
+.stat-change {
+    font-size: 13px;
+    margin-top: 8px;
+    color: var(--text-muted);
+}
+
+.stat-change.positive {
+    color: var(--success-green);
+}
+
+.stat-change.negative {
+    color: var(--danger-red);
+}
+
+.stat-subtitle {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 8px;
+}
+
+.stat-icon.primary {
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--primary-blue);
+}
+
+.stat-icon.success {
+    background: rgba(34, 197, 94, 0.1);
+    color: var(--success-green);
+}
+
+.stat-icon.warning {
+    background: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+}
+
+.stat-icon.danger {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--danger-red);
+}
+
+/* ダッシュボードグラフ */
+.dashboard-charts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+    gap: 24px;
+    margin-bottom: 32px;
+}
+
+.chart-card {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+    padding: 24px;
+    margin: 0 auto;
+    max-width: 1200px;
+}
+
+.chart-card-header {
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.chart-card-header h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.chart-container {
+    position: relative;
+    height: 300px;
+}
+
+/* 分析セクション */
+.analysis-section {
+    margin-bottom: 32px;
+}
+
+.analysis-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 20px;
+}
+
+.analysis-card {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+    padding: 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.analysis-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 12px;
+    background: rgba(59, 130, 246, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.analysis-icon svg {
+    width: 24px;
+    height: 24px;
+    color: var(--primary-blue);
+}
+
+.analysis-content {
+    flex: 1;
+}
+
+.analysis-label {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+
+.analysis-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.analysis-subtitle {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+/* 離脱リスク顧客リスト */
+.risk-clients-section {
+    margin-top: 32px;
+}
+
+.risk-clients-list {
+    display: grid;
+    gap: 12px;
+}
+
+.risk-client-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-left: 4px solid var(--danger-red);
+}
+
+.risk-client-info {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.risk-client-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--off-white);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.risk-client-details h4 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 4px 0;
+}
+
+.risk-client-details p {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.risk-client-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.risk-clients-list:empty::before {
+    content: '離脱リスクのある顧客はいません';
+    display: block;
+    text-align: center;
+    padding: 40px;
+    color: var(--text-muted);
+    background: var(--off-white);
+    border-radius: 12px;
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 768px) {
+    .dashboard-stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .dashboard-charts {
+        grid-template-columns: 1fr;
+    }
+
+    .analysis-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .risk-client-card {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+    }
+
+    .risk-client-actions {
+        width: 100%;
+        justify-content: stretch;
+    }
+
+    .risk-client-actions button {
+        flex: 1;
+    }
+}
+
+/* ========================================
+   モダンなデザイン強化
+   ======================================== */
+
+/* グラスモーフィズム効果 */
+.stat-card {
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transition: all var(--transition-base);
+    position: relative;
+    overflow: hidden;
+}
+
+.stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+    opacity: 0;
+    transition: opacity var(--transition-base);
+    pointer-events: none;
+}
+
+.stat-card:hover::before {
+    opacity: 1;
+}
+
+.stat-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+}
+
+/* アニメーションのある数値カウンター */
+@keyframes countUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.stat-value {
+    animation: countUp 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ダッシュボードカードのパルスエフェクト */
+@keyframes pulse {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
+    }
+}
+
+.stat-icon.primary {
+    animation: pulse 2s infinite;
+}
+
+/* チャートカードのホバーエフェクト */
+.chart-card {
+    transition: all var(--transition-base);
+    position: relative;
+}
+
+.chart-card::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-gold), var(--success-green));
+    border-radius: 16px;
+    opacity: 0;
+    z-index: -1;
+    transition: opacity var(--transition-base);
+}
+
+.chart-card:hover::after {
+    opacity: 0.15;
+}
+
+.chart-card:hover {
+    transform: scale(1.02);
+    box-shadow: 0 16px 32px rgba(0, 0, 0, 0.12);
+}
+
+/* 分析カードのグラデーションボーダー */
+.analysis-card {
+    position: relative;
+    background: linear-gradient(white, white) padding-box,
+                linear-gradient(135deg, var(--accent-blue) 0%, var(--success-green) 100%) border-box;
+    border: 2px solid transparent;
+    transition: all var(--transition-base);
+}
+
+.analysis-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(59, 130, 246, 0.2);
+}
+
+/* プログレスバーのアニメーション */
+@keyframes progressLoad {
+    from {
+        width: 0;
+    }
+}
+
+.progress-bar {
+    animation: progressLoad 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* スムーズなページトランジション */
+.page {
+    animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ボタンのリップルエフェクト */
+.btn {
+    position: relative;
+    overflow: hidden;
+}
+
+.btn::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.5);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+}
+
+.btn:active::after {
+    width: 300px;
+    height: 300px;
+}
+
+/* ナビゲーションアイテムのアクティブ状態 */
+.nav-item {
+    position: relative;
+}
+
+.nav-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 0;
+    background: linear-gradient(180deg, var(--accent-blue), var(--accent-gold));
+    border-radius: 0 4px 4px 0;
+    transition: height var(--transition-base);
+}
+
+.nav-item.active::before,
+.nav-item:hover::before {
+    height: 70%;
+}
+
+/* データの読み込み中アニメーション */
+@keyframes shimmer {
+    0% {
+        background-position: -1000px 0;
+    }
+    100% {
+        background-position: 1000px 0;
+    }
+}
+
+.loading-skeleton {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 1000px 100%;
+    animation: shimmer 2s infinite;
+}
+
+/* リスク顧客カードのパルスアラート */
+.risk-client-card {
+    animation: borderPulse 2s ease-in-out infinite;
+}
+
+@keyframes borderPulse {
+    0%, 100% {
+        border-left-color: var(--danger-red);
+    }
+    50% {
+        border-left-color: var(--warning-orange);
+    }
+}
+
+/* スクロールバーのスタイリング */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--slate-100);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, var(--accent-blue), var(--accent-gold));
+    border-radius: 4px;
+    transition: background var(--transition-base);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, var(--accent-gold), var(--accent-blue));
+}
+
+/* ツールチップ */
+[data-tooltip] {
+    position: relative;
+}
+
+[data-tooltip]::before {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-8px);
+    padding: 8px 12px;
+    background: var(--navy-dark);
+    color: white;
+    border-radius: 6px;
+    font-size: 12px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: all var(--transition-base);
+    z-index: 1000;
+}
+
+[data-tooltip]::after {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    border: 6px solid transparent;
+    border-top-color: var(--navy-dark);
+    opacity: 0;
+    pointer-events: none;
+    transition: all var(--transition-base);
+}
+
+[data-tooltip]:hover::before,
+[data-tooltip]:hover::after {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-12px);
+}
+
+/* グラフの読み込みアニメーション */
+canvas {
+    animation: fadeInCanvas 0.8s ease-out;
+}
+
+@keyframes fadeInCanvas {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* ========================================
+   統合グラフ
+   ======================================== */
+
+.integrated-chart-section {
+    background: white;
+    border-radius: 20px;
+    padding: 32px;
+    margin: 0 auto 32px auto;
+    max-width: 1200px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+    position: relative;
+    overflow: hidden;
+}
+
+.integrated-chart-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #ef4444 0%, #3b82f6 33%, #10b981 66%, #f59e0b 100%);
+}
+
+.chart-section-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--navy-dark);
+    margin-bottom: 24px;
+    text-align: center;
+}
+
+.integrated-chart-container {
+    height: 400px;
+    position: relative;
+    margin-bottom: 24px;
+}
+
+.chart-legend {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    flex-wrap: wrap;
+    padding: 16px;
+    background: var(--slate-50);
+    border-radius: 12px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    transition: all var(--transition-base);
+}
+
+.legend-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.legend-color {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    display: inline-block;
+}
+
+.legend-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--navy-dark);
+}
+
+@media (max-width: 768px) {
+    .integrated-chart-container {
+        height: 300px;
+    }
+
+    .chart-legend {
+        gap: 12px;
+    }
+
+    .legend-item {
+        padding: 6px 12px;
+        font-size: 12px;
+    }
 }
