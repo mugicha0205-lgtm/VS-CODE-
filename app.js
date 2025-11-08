@@ -237,6 +237,34 @@ function setupEventListeners() {
         });
     }
 
+    // PT経験ラジオボタンの処理
+    const ptExperienceRadios = document.querySelectorAll('input[name="ptExperience"]');
+    ptExperienceRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            const detailsField = document.getElementById('ptExperienceDetails');
+            if (this.value === '有') {
+                detailsField.style.display = 'block';
+            } else {
+                detailsField.style.display = 'none';
+                detailsField.value = '';
+            }
+        });
+    });
+
+    // 運動歴ラジオボタンの処理
+    const exerciseHistoryRadios = document.querySelectorAll('input[name="exerciseHistory"]');
+    exerciseHistoryRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            const detailsField = document.getElementById('exerciseHistoryDetails');
+            if (this.value === '有') {
+                detailsField.style.display = 'block';
+            } else {
+                detailsField.style.display = 'none';
+                detailsField.value = '';
+            }
+        });
+    });
+
     // 検索・フィルター
     document.getElementById('searchInput').addEventListener('input', filterClients);
     document.getElementById('statusFilter').addEventListener('change', filterClients);
@@ -915,11 +943,39 @@ function openClientDetail(clientId) {
     document.getElementById('birthdate').value = client.birthdate || '';
     document.getElementById('phone').value = client.phone || '';
     document.getElementById('email').value = client.email || '';
+    if (document.getElementById('occupation')) document.getElementById('occupation').value = client.occupation || '';
     document.getElementById('goalDate').value = client.goalDate || '';
     document.getElementById('goalWeight').value = client.goalWeight || '';
     document.getElementById('goalBodyFat').value = client.goalBodyFat || '';
     document.getElementById('goal').value = client.goal || '';
     document.getElementById('medicalNotes').value = client.medicalNotes || '';
+
+    // 身長フィールド
+    if (document.getElementById('height')) document.getElementById('height').value = client.height || '';
+
+    // PT経験フィールド
+    const ptExp = client.ptExperience || '無';
+    const ptExpRadio = document.querySelector(`input[name="ptExperience"][value="${ptExp}"]`);
+    if (ptExpRadio) ptExpRadio.checked = true;
+    const ptExpDetails = document.getElementById('ptExperienceDetails');
+    if (ptExpDetails) {
+        ptExpDetails.value = client.ptExperienceDetails || '';
+        ptExpDetails.style.display = ptExp === '有' ? 'block' : 'none';
+    }
+
+    // 運動歴フィールド
+    const exHist = client.exerciseHistory || '無';
+    const exHistRadio = document.querySelector(`input[name="exerciseHistory"][value="${exHist}"]`);
+    if (exHistRadio) exHistRadio.checked = true;
+    const exHistDetails = document.getElementById('exerciseHistoryDetails');
+    if (exHistDetails) {
+        exHistDetails.value = client.exerciseHistoryDetails || '';
+        exHistDetails.style.display = exHist === '有' ? 'block' : 'none';
+    }
+
+    // トレーニング頻度・開始希望日フィールド
+    if (document.getElementById('trainingFrequency')) document.getElementById('trainingFrequency').value = client.trainingFrequency || '';
+    if (document.getElementById('ptStartDate')) document.getElementById('ptStartDate').value = client.ptStartDate || '';
 
     // 生活習慣フィールド
     if (document.getElementById('sleepHours')) document.getElementById('sleepHours').value = client.sleepHours || '';
@@ -1038,6 +1094,16 @@ function handleClientFormSubmit(e) {
     const otherPurpose = otherPurposeEl?.value || '';
     const finalPurpose = trainingPurpose === 'その他' && otherPurpose ? otherPurpose : trainingPurpose;
 
+    // PT経験
+    const ptExperienceRadio = document.querySelector('input[name="ptExperience"]:checked');
+    const ptExperience = ptExperienceRadio?.value || '無';
+    const ptExperienceDetails = ptExperience === '有' ? document.getElementById('ptExperienceDetails')?.value || '' : '';
+
+    // 運動歴
+    const exerciseHistoryRadio = document.querySelector('input[name="exerciseHistory"]:checked');
+    const exerciseHistory = exerciseHistoryRadio?.value || '無';
+    const exerciseHistoryDetails = exerciseHistory === '有' ? document.getElementById('exerciseHistoryDetails')?.value || '' : '';
+
     const clientData = {
         id: document.getElementById('clientId').value,
         name: document.getElementById('name').value,
@@ -1047,14 +1113,22 @@ function handleClientFormSubmit(e) {
         age: calculateAge(document.getElementById('birthdate').value),
         phone: document.getElementById('phone').value,
         email: document.getElementById('email').value || '',
+        occupation: document.getElementById('occupation')?.value || '',
         address: document.getElementById('address')?.value || '',
         emergencyContact: document.getElementById('emergencyContact')?.value || '',
         emergencyPhone: document.getElementById('emergencyPhone')?.value || '',
+        ptExperience: ptExperience,
+        ptExperienceDetails: ptExperienceDetails,
+        exerciseHistory: exerciseHistory,
+        exerciseHistoryDetails: exerciseHistoryDetails,
+        trainingFrequency: document.getElementById('trainingFrequency')?.value || '',
+        ptStartDate: document.getElementById('ptStartDate')?.value || '',
         trainingPurpose: finalPurpose || '',
         goalDate: document.getElementById('goalDate').value,
         goalWeight: parseFloat(document.getElementById('goalWeight').value) || null,
         goalBodyFat: parseFloat(document.getElementById('goalBodyFat').value) || null,
         goal: document.getElementById('goal').value,
+        height: parseFloat(document.getElementById('height')?.value) || null,
         sleepHours: parseFloat(document.getElementById('sleepHours')?.value) || null,
         mealFrequency: parseInt(document.getElementById('mealFrequency')?.value) || null,
         snackFrequency: parseInt(document.getElementById('snackFrequency')?.value) || null,

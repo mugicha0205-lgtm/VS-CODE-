@@ -812,8 +812,65 @@
                                     <input type="email" id="email">
                                 </div>
                                 <div class="form-group">
+                                    <label>職業</label>
+                                    <input type="text" id="occupation" placeholder="例: 会社員、自営業、学生">
+                                </div>
+                                <div class="form-group">
                                     <label>次回予約日時</label>
                                     <input type="datetime-local" id="clientNextAppointment">
+                                </div>
+                            </div>
+
+                            <div class="form-section">
+                                <h3>
+                                    <span>トレーニング経験</span>
+                                </h3>
+                                <div>
+                                <div class="form-group">
+                                    <label>パーソナルトレーニング経験</label>
+                                    <div style="display: flex; gap: 20px; margin-bottom: 10px;">
+                                        <label style="display: flex; align-items: center; gap: 5px;">
+                                            <input type="radio" name="ptExperience" value="無" checked>
+                                            <span>無</span>
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 5px;">
+                                            <input type="radio" name="ptExperience" value="有">
+                                            <span>有</span>
+                                        </label>
+                                    </div>
+                                    <input type="text" id="ptExperienceDetails" placeholder="例: ヨガ、ピラティス、パーソナルジム等" style="display: none; margin-top: 10px;">
+                                </div>
+                                <div class="form-group">
+                                    <label>過去の運動歴</label>
+                                    <div style="display: flex; gap: 20px; margin-bottom: 10px;">
+                                        <label style="display: flex; align-items: center; gap: 5px;">
+                                            <input type="radio" name="exerciseHistory" value="無" checked>
+                                            <span>無</span>
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 5px;">
+                                            <input type="radio" name="exerciseHistory" value="有">
+                                            <span>有</span>
+                                        </label>
+                                    </div>
+                                    <input type="text" id="exerciseHistoryDetails" placeholder="例: ジム通い、水泳、ランニング、スポーツ経験等" style="display: none; margin-top: 10px;">
+                                </div>
+                                <div class="form-group">
+                                    <label>現在のトレーニング頻度</label>
+                                    <select id="trainingFrequency">
+                                        <option value="">選択してください</option>
+                                        <option value="週0回（運動していない）">週0回（運動していない）</option>
+                                        <option value="週1回">週1回</option>
+                                        <option value="週2回">週2回</option>
+                                        <option value="週3回">週3回</option>
+                                        <option value="週4回">週4回</option>
+                                        <option value="週5回以上">週5回以上</option>
+                                        <option value="毎日">毎日</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>PT開始希望日</label>
+                                    <input type="date" id="ptStartDate">
+                                </div>
                                 </div>
                             </div>
 
@@ -823,6 +880,10 @@
                                 </h3>
                                 <div>
                                 <div class="form-row">
+                                    <div class="form-group">
+                                        <label>身長 (cm)</label>
+                                        <input type="number" id="height" step="0.1" placeholder="例: 170.5">
+                                    </div>
                                     <div class="form-group">
                                         <label>現在の体重 (kg)</label>
                                         <input type="number" id="initialWeight" step="0.1">

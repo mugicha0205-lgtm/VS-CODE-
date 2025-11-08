@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pt-manager-v7';
+const CACHE_NAME = 'pt-manager-v12';
 const APP_SHELL = [
   '/',
   '/index.html',
