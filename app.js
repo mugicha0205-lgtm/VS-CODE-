@@ -977,6 +977,19 @@ function openClientDetail(clientId) {
     if (document.getElementById('trainingFrequency')) document.getElementById('trainingFrequency').value = client.trainingFrequency || '';
     if (document.getElementById('ptStartDate')) document.getElementById('ptStartDate').value = client.ptStartDate || '';
 
+    // ボディサイズフィールド
+    if (client.bodySizes) {
+        if (document.getElementById('initialChest')) document.getElementById('initialChest').value = client.bodySizes.chest || '';
+        if (document.getElementById('initialWaist')) document.getElementById('initialWaist').value = client.bodySizes.waist || '';
+        if (document.getElementById('initialHip')) document.getElementById('initialHip').value = client.bodySizes.hip || '';
+        if (document.getElementById('initialRightArm')) document.getElementById('initialRightArm').value = client.bodySizes.rightArm || '';
+        if (document.getElementById('initialLeftArm')) document.getElementById('initialLeftArm').value = client.bodySizes.leftArm || '';
+        if (document.getElementById('initialRightThigh')) document.getElementById('initialRightThigh').value = client.bodySizes.rightThigh || '';
+        if (document.getElementById('initialLeftThigh')) document.getElementById('initialLeftThigh').value = client.bodySizes.leftThigh || '';
+        if (document.getElementById('initialRightCalf')) document.getElementById('initialRightCalf').value = client.bodySizes.rightCalf || '';
+        if (document.getElementById('initialLeftCalf')) document.getElementById('initialLeftCalf').value = client.bodySizes.leftCalf || '';
+    }
+
     // 生活習慣フィールド
     if (document.getElementById('sleepHours')) document.getElementById('sleepHours').value = client.sleepHours || '';
     if (document.getElementById('mealFrequency')) document.getElementById('mealFrequency').value = client.mealFrequency || '';
@@ -1129,6 +1142,17 @@ function handleClientFormSubmit(e) {
         goalBodyFat: parseFloat(document.getElementById('goalBodyFat').value) || null,
         goal: document.getElementById('goal').value,
         height: parseFloat(document.getElementById('height')?.value) || null,
+        bodySizes: {
+            chest: parseFloat(document.getElementById('initialChest')?.value) || null,
+            waist: parseFloat(document.getElementById('initialWaist')?.value) || null,
+            hip: parseFloat(document.getElementById('initialHip')?.value) || null,
+            rightArm: parseFloat(document.getElementById('initialRightArm')?.value) || null,
+            leftArm: parseFloat(document.getElementById('initialLeftArm')?.value) || null,
+            rightThigh: parseFloat(document.getElementById('initialRightThigh')?.value) || null,
+            leftThigh: parseFloat(document.getElementById('initialLeftThigh')?.value) || null,
+            rightCalf: parseFloat(document.getElementById('initialRightCalf')?.value) || null,
+            leftCalf: parseFloat(document.getElementById('initialLeftCalf')?.value) || null
+        },
         sleepHours: parseFloat(document.getElementById('sleepHours')?.value) || null,
         mealFrequency: parseInt(document.getElementById('mealFrequency')?.value) || null,
         snackFrequency: parseInt(document.getElementById('snackFrequency')?.value) || null,
