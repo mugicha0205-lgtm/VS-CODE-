@@ -921,6 +921,13 @@ function openClientDetail(clientId) {
     document.getElementById('goal').value = client.goal || '';
     document.getElementById('medicalNotes').value = client.medicalNotes || '';
 
+    // 生活習慣フィールド
+    if (document.getElementById('sleepHours')) document.getElementById('sleepHours').value = client.sleepHours || '';
+    if (document.getElementById('mealFrequency')) document.getElementById('mealFrequency').value = client.mealFrequency || '';
+    if (document.getElementById('snackFrequency')) document.getElementById('snackFrequency').value = client.snackFrequency || '';
+    if (document.getElementById('alcoholConsumption')) document.getElementById('alcoholConsumption').value = client.alcoholConsumption || '';
+    if (document.getElementById('smokingHabit')) document.getElementById('smokingHabit').value = client.smokingHabit || '';
+
     // 次回予約日時を設定（ISO8601形式に変換）
     if (client.nextAppointment) {
         const apptDate = new Date(client.nextAppointment);
@@ -1048,6 +1055,9 @@ function handleClientFormSubmit(e) {
         goalWeight: parseFloat(document.getElementById('goalWeight').value) || null,
         goalBodyFat: parseFloat(document.getElementById('goalBodyFat').value) || null,
         goal: document.getElementById('goal').value,
+        sleepHours: parseFloat(document.getElementById('sleepHours')?.value) || null,
+        mealFrequency: parseInt(document.getElementById('mealFrequency')?.value) || null,
+        snackFrequency: parseInt(document.getElementById('snackFrequency')?.value) || null,
         alcoholConsumption: document.getElementById('alcoholConsumption')?.value || '',
         smokingHabit: document.getElementById('smokingHabit')?.value || '',
         medicalNotes: document.getElementById('medicalNotes').value,
@@ -4454,17 +4464,20 @@ function updateDashboardStats() {
     let lastMonthRevenue = 0;
 
     clients.forEach(client => {
-        if (client.tickets) {
-            client.tickets.forEach(ticket => {
-                const ticketDate = new Date(ticket.purchaseDate);
-                if (ticketDate.getMonth() === thisMonth && ticketDate.getFullYear() === thisYear) {
-                    monthlyRevenue += ticket.price;
-                }
-                // 先月の売上
-                const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1;
-                const lastMonthYear = thisMonth === 0 ? thisYear - 1 : thisYear;
-                if (ticketDate.getMonth() === lastMonth && ticketDate.getFullYear() === lastMonthYear) {
-                    lastMonthRevenue += ticket.price;
+        if (client.ticketHistory) {
+            client.ticketHistory.forEach(ticket => {
+                // 支払い済みのチケットのみ集計
+                if (ticket.paymentStatus === '完了' || ticket.paymentStatus === '支払済み') {
+                    const ticketDate = new Date(ticket.date);
+                    if (ticketDate.getMonth() === thisMonth && ticketDate.getFullYear() === thisYear) {
+                        monthlyRevenue += ticket.price || 0;
+                    }
+                    // 先月の売上
+                    const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1;
+                    const lastMonthYear = thisMonth === 0 ? thisYear - 1 : thisYear;
+                    if (ticketDate.getMonth() === lastMonth && ticketDate.getFullYear() === lastMonthYear) {
+                        lastMonthRevenue += ticket.price || 0;
+                    }
                 }
             });
         }

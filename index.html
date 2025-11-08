@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, maximum-scale=5.0, viewport-fit=cover">
-    <meta name="description" content="パーソナルトレーナー向けの顧客管理システム。顧客情報、セッション記録、チケット管理、進捗グラフを一元管理。">
+    <meta name="description" content="PT Manager - 顧客管理システム">
 
     <!-- PWA & モバイル最適化 -->
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -18,7 +18,7 @@
     <link rel="apple-touch-icon" sizes="152x152" href="icon-192.png">
     <link rel="apple-touch-icon" sizes="120x120" href="icon-192.png">
 
-    <title>PT Manager - パーソナルトレーナー顧客管理</title>
+    <title>PT Manager</title>
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -892,6 +892,20 @@
                                     <span>生活習慣</span>
                                 </h3>
                                 <div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>睡眠時間（時間）</label>
+                                        <input type="number" id="sleepHours" step="0.5" min="0" max="24" placeholder="例: 7">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>食事回数（回/日）</label>
+                                        <input type="number" id="mealFrequency" min="0" max="10" placeholder="例: 3">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>間食（回/日）</label>
+                                        <input type="number" id="snackFrequency" min="0" max="20" placeholder="例: 1">
+                                    </div>
+                                </div>
                                 <div class="form-row">
                                     <div class="form-group">
                                         <label>アルコール摂取</label>

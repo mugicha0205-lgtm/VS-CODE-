@@ -1,7 +1,7 @@
 {
-  "name": "PT Manager - パーソナルトレーナー顧客管理",
+  "name": "PT Manager",
   "short_name": "PT Manager",
-  "description": "パーソナルトレーナー向けの顧客管理アプリ。顧客情報、トレーニング記録、チケット管理、進捗グラフをまとめて表示。",
+  "description": "PT Manager - 顧客管理システム",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
