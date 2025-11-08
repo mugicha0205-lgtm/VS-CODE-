@@ -811,16 +811,17 @@
                                     <label>メールアドレス</label>
                                     <input type="email" id="email">
                                 </div>
+                                <div class="form-group">
+                                    <label>次回予約日時</label>
+                                    <input type="datetime-local" id="clientNextAppointment">
+                                </div>
                             </div>
 
-                            <div class="form-section collapsible-section">
-                                <h3 class="collapsible-header">
+                            <div class="form-section">
+                                <h3>
                                     <span>初回身体測定</span>
-                                    <svg class="collapse-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-                                        <polyline points="6 9 12 15 18 9"></polyline>
-                                    </svg>
                                 </h3>
-                                <div class="collapsible-content">
+                                <div>
                                 <div class="form-row">
                                     <div class="form-group">
                                         <label>現在の体重 (kg)</label>
@@ -842,14 +843,11 @@
                                 </div>
                             </div>
 
-                            <div class="form-section collapsible-section">
-                                <h3 class="collapsible-header">
+                            <div class="form-section">
+                                <h3>
                                     <span>目標設定</span>
-                                    <svg class="collapse-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-                                        <polyline points="6 9 12 15 18 9"></polyline>
-                                    </svg>
                                 </h3>
-                                <div class="collapsible-content">
+                                <div>
                                 <div class="form-group">
                                     <label>パーソナルを受ける目的</label>
                                     <select id="trainingPurpose">
@@ -889,14 +887,11 @@
                                 </div>
                             </div>
 
-                            <div class="form-section collapsible-section">
-                                <h3 class="collapsible-header">
+                            <div class="form-section">
+                                <h3>
                                     <span>生活習慣</span>
-                                    <svg class="collapse-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-                                        <polyline points="6 9 12 15 18 9"></polyline>
-                                    </svg>
                                 </h3>
-                                <div class="collapsible-content">
+                                <div>
                                 <div class="form-row">
                                     <div class="form-group">
                                         <label>アルコール摂取</label>
@@ -945,13 +940,21 @@
                                 </div>
                                 <div class="ticket-info-input" id="ticketInfoInput">
                                     <div class="form-group">
-                                        <label>初回チケット回数</label>
+                                        <label>初回チケット種類</label>
                                         <select id="initialTickets">
-                                            <option value="0">選択してください</option>
-                                            <option value="1">1回チケット</option>
-                                            <option value="4">4回チケット</option>
-                                            <option value="8">8回チケット</option>
+                                            <option value="">選択してください</option>
+                                            <option value="1">1回チケット (¥9,000)</option>
+                                            <option value="4">4回チケット (¥36,000)</option>
+                                            <option value="8">8回チケット (¥70,000)</option>
+                                            <option value="pt-extension">PT延長 (¥4,500)</option>
+                                            <option value="fascia-release">筋膜リリース (¥4,500)</option>
+                                            <option value="pair-training">ペアトレ (¥15,000)</option>
+                                            <option value="custom">その他（金額を入力）</option>
                                         </select>
+                                    </div>
+                                    <div class="form-group" id="customPriceGroup" style="display: none;">
+                                        <label>金額 (円)</label>
+                                        <input type="number" id="customPrice" placeholder="金額を入力">
                                     </div>
                                 </div>
                             </div>
@@ -968,14 +971,6 @@
                             <button type="submit" class="btn btn-primary">保存</button>
                             <button type="button" class="btn btn-secondary" id="cancelBtn">キャンセル</button>
                             <button type="button" class="btn btn-danger" id="deleteBtn">削除</button>
-                            <button type="button" class="btn btn-secondary" id="printReportBtn">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <polyline points="6 9 6 2 18 2 18 9"></polyline>
-                                    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
-                                    <rect x="6" y="14" width="12" height="8"></rect>
-                                </svg>
-                                レポート印刷
-                            </button>
                         </div>
                     </form>
                 </div>
@@ -1000,7 +995,17 @@
                 <div class="tab-content" id="progressTab">
                     <!-- 統合グラフ -->
                     <div class="integrated-chart-section">
-                        <h3 class="chart-section-title">総合進捗</h3>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <h3 class="chart-section-title" style="margin: 0;">総合進捗</h3>
+                            <button class="btn btn-secondary btn-small" id="exportChartBtn">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px;">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="7 10 12 15 17 10"></polyline>
+                                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                                </svg>
+                                画像として保存
+                            </button>
+                        </div>
                         <div class="integrated-chart-container">
                             <canvas id="integratedChart"></canvas>
                         </div>
@@ -1077,6 +1082,15 @@
                 </button>
             </div>
             <div class="modal-body">
+                <!-- 下書きの通知 -->
+                <div class="alert alert-info" id="draftAlert" style="display: none; margin-bottom: 16px; background-color: #e3f2fd; border-left: 4px solid #2196f3; color: #1976d2;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 20px; height: 20px; margin-right: 8px;">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="16" x2="12" y2="12"></line>
+                        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                    </svg>
+                    <span>下書きがあります。下書きを読み込みました。</span>
+                </div>
                 <!-- 特記事項の警告表示 -->
                 <div class="alert alert-warning" id="sessionMedicalAlert" style="display: none;">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1181,7 +1195,8 @@
                     </div>
 
                     <div class="form-actions">
-                        <button type="submit" class="btn btn-primary">セッション記録を保存</button>
+                        <button type="button" class="btn btn-secondary" id="saveDraftBtn">下書き保存</button>
+                        <button type="submit" class="btn btn-primary">保存</button>
                         <button type="button" class="btn btn-secondary" id="sessionCancelBtn">キャンセル</button>
                     </div>
                 </form>
@@ -1225,6 +1240,38 @@
                                 <div class="ticket-price">¥70,000</div>
                             </div>
                         </label>
+                        <label class="ticket-option">
+                            <input type="radio" name="ticketType" value="pt-extension" data-price="4500">
+                            <div class="ticket-card">
+                                <div class="ticket-name">PT延長</div>
+                                <div class="ticket-price">¥4,500</div>
+                            </div>
+                        </label>
+                        <label class="ticket-option">
+                            <input type="radio" name="ticketType" value="fascia-release" data-price="4500">
+                            <div class="ticket-card">
+                                <div class="ticket-name">筋膜リリース</div>
+                                <div class="ticket-price">¥4,500</div>
+                            </div>
+                        </label>
+                        <label class="ticket-option">
+                            <input type="radio" name="ticketType" value="pair-training" data-price="15000">
+                            <div class="ticket-card">
+                                <div class="ticket-name">ペアトレ</div>
+                                <div class="ticket-price">¥15,000</div>
+                            </div>
+                        </label>
+                        <label class="ticket-option">
+                            <input type="radio" name="ticketType" value="custom" data-price="0">
+                            <div class="ticket-card">
+                                <div class="ticket-name">その他</div>
+                                <div class="ticket-price">カスタム金額</div>
+                            </div>
+                        </label>
+                    </div>
+                    <div class="form-group" id="customPriceGroupModal" style="display: none; margin-top: 16px;">
+                        <label>金額 (円)</label>
+                        <input type="number" id="customPriceModal" placeholder="金額を入力" min="0">
                     </div>
 
                     <div class="form-section">
@@ -1232,15 +1279,15 @@
                             <label>支払い方法</label>
                             <select id="ticketPaymentMethod">
                                 <option value="クレジットカード">クレジットカード</option>
-                                <option value="銀行振込">銀行振込</option>
+                                <option value="PayPay">PayPay</option>
                                 <option value="現金">現金</option>
+                                <option value="その他">その他</option>
                             </select>
                         </div>
                         <div class="form-group">
                             <label>支払いステータス</label>
                             <select id="ticketPaymentStatus">
                                 <option value="支払済み">支払済み</option>
-                                <option value="未払い">未払い</option>
                             </select>
                         </div>
                     </div>

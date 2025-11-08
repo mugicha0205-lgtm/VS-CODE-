@@ -179,6 +179,9 @@ function setupEventListeners() {
     document.getElementById('sessionCancelBtn').addEventListener('click', closeSessionModal);
     document.getElementById('ticketCancelBtn').addEventListener('click', closeTicketModal);
 
+    // 下書き保存ボタン
+    document.getElementById('saveDraftBtn').addEventListener('click', saveSessionDraft);
+
     // フォーム送信
     document.getElementById('clientForm').addEventListener('submit', handleClientFormSubmit);
     document.getElementById('sessionForm').addEventListener('submit', handleSessionFormSubmit);
@@ -197,6 +200,9 @@ function setupEventListeners() {
 
     // セッション記録ボタン
     document.getElementById('addSessionBtn').addEventListener('click', openSessionModal);
+
+    // グラフエクスポートボタン
+    document.getElementById('exportChartBtn').addEventListener('click', exportChartAsImage);
 
     // チケット購入ボタン
     document.getElementById('addTicketBtn').addEventListener('click', openTicketModal);
@@ -247,6 +253,33 @@ function setupEventListeners() {
 
     // Google認証
     document.getElementById('googleAuthBtn').addEventListener('click', handleGoogleAuth);
+
+    // チケット種類選択で「その他」選択時の処理（新規登録）
+    const initialTicketsSelect = document.getElementById('initialTickets');
+    if (initialTicketsSelect) {
+        initialTicketsSelect.addEventListener('change', function() {
+            const customPriceGroup = document.getElementById('customPriceGroup');
+            if (this.value === 'custom') {
+                customPriceGroup.style.display = 'block';
+            } else {
+                customPriceGroup.style.display = 'none';
+                document.getElementById('customPrice').value = '';
+            }
+        });
+    }
+
+    // チケット種類選択で「その他」選択時の処理（チケット購入モーダル）
+    document.querySelectorAll('input[name="ticketType"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            const customPriceGroupModal = document.getElementById('customPriceGroupModal');
+            if (this.value === 'custom') {
+                customPriceGroupModal.style.display = 'block';
+            } else {
+                customPriceGroupModal.style.display = 'none';
+                document.getElementById('customPriceModal').value = '';
+            }
+        });
+    });
 
     // カレンダー同期
     document.getElementById('syncCalendarBtn').addEventListener('click', syncWithGoogleCalendar);
@@ -888,6 +921,20 @@ function openClientDetail(clientId) {
     document.getElementById('goal').value = client.goal || '';
     document.getElementById('medicalNotes').value = client.medicalNotes || '';
 
+    // 次回予約日時を設定（ISO8601形式に変換）
+    if (client.nextAppointment) {
+        const apptDate = new Date(client.nextAppointment);
+        // datetime-local用にフォーマット (YYYY-MM-DDTHH:mm)
+        const year = apptDate.getFullYear();
+        const month = String(apptDate.getMonth() + 1).padStart(2, '0');
+        const day = String(apptDate.getDate()).padStart(2, '0');
+        const hours = String(apptDate.getHours()).padStart(2, '0');
+        const minutes = String(apptDate.getMinutes()).padStart(2, '0');
+        document.getElementById('clientNextAppointment').value = `${year}-${month}-${day}T${hours}:${minutes}`;
+    } else {
+        document.getElementById('clientNextAppointment').value = '';
+    }
+
     // チケット情報の表示/入力切り替え
     const ticketInfoDisplay = document.getElementById('ticketInfoDisplay');
     const ticketInfoInput = document.getElementById('ticketInfoInput');
@@ -1004,6 +1051,7 @@ function handleClientFormSubmit(e) {
         alcoholConsumption: document.getElementById('alcoholConsumption')?.value || '',
         smokingHabit: document.getElementById('smokingHabit')?.value || '',
         medicalNotes: document.getElementById('medicalNotes').value,
+        nextAppointment: document.getElementById('clientNextAppointment').value || null,
         status: 'アクティブ'
     };
 
@@ -1020,9 +1068,9 @@ function handleClientFormSubmit(e) {
         // 既存顧客のチケット情報を更新（入力欄が表示されている場合のみ）
         const ticketInfoInput = document.getElementById('ticketInfoInput');
         if (ticketInfoInput.style.display !== 'none') {
-            const initialTickets = parseInt(document.getElementById('initialTickets').value) || 0;
+            const initialTicketsValue = document.getElementById('initialTickets').value;
 
-            if (initialTickets > 0) {
+            if (initialTicketsValue) {
                 if (!clients[index].tickets) {
                     clients[index].tickets = { remaining: 0, total: 0 };
                 }
@@ -1030,19 +1078,50 @@ function handleClientFormSubmit(e) {
                     clients[index].ticketHistory = [];
                 }
 
-                clients[index].tickets.remaining += initialTickets;
-                clients[index].tickets.total += initialTickets;
-
-                // チケット料金を自動設定
+                // チケット種類と料金を取得
+                let ticketCount = 0;
                 let ticketPrice = 0;
-                if (initialTickets === 1) ticketPrice = 9000;
-                else if (initialTickets === 4) ticketPrice = 36000;
-                else if (initialTickets === 8) ticketPrice = 70000;
+                let ticketTypeName = '';
+
+                if (initialTicketsValue === 'pt-extension') {
+                    ticketCount = 1;
+                    ticketPrice = 4500;
+                    ticketTypeName = 'PT延長';
+                } else if (initialTicketsValue === 'fascia-release') {
+                    ticketCount = 1;
+                    ticketPrice = 4500;
+                    ticketTypeName = '筋膜リリース';
+                } else if (initialTicketsValue === 'pair-training') {
+                    ticketCount = 1;
+                    ticketPrice = 15000;
+                    ticketTypeName = 'ペアトレ';
+                } else if (initialTicketsValue === 'custom') {
+                    ticketCount = 1;
+                    ticketPrice = parseInt(document.getElementById('customPrice').value) || 0;
+                    ticketTypeName = 'カスタム';
+                } else {
+                    // 通常の回数券（1/4/8回）
+                    ticketCount = parseInt(initialTicketsValue);
+                    if (ticketCount === 1) {
+                        ticketPrice = 9000;
+                        ticketTypeName = '1回チケット';
+                    } else if (ticketCount === 4) {
+                        ticketPrice = 36000;
+                        ticketTypeName = '4回チケット';
+                    } else if (ticketCount === 8) {
+                        ticketPrice = 70000;
+                        ticketTypeName = '8回チケット';
+                    }
+                }
+
+                clients[index].tickets.remaining += ticketCount;
+                clients[index].tickets.total += ticketCount;
 
                 clients[index].ticketHistory.push({
                     id: 'ticket_' + Date.now(),
                     date: new Date().toISOString(),
-                    count: initialTickets,
+                    type: ticketTypeName,
+                    count: ticketCount,
                     price: ticketPrice,
                     paymentMethod: 'その他',
                     paymentStatus: '完了'
@@ -1055,25 +1134,56 @@ function handleClientFormSubmit(e) {
         clientData.ticketHistory = [];
 
         // 初回チケット情報を取得
-        const initialTickets = parseInt(document.getElementById('initialTickets').value) || 0;
+        const initialTicketsValue = document.getElementById('initialTickets').value;
+
+        // チケット種類と料金を取得
+        let ticketCount = 0;
+        let ticketPrice = 0;
+        let ticketTypeName = '';
+
+        if (initialTicketsValue === 'pt-extension') {
+            ticketCount = 1;
+            ticketPrice = 4500;
+            ticketTypeName = 'PT延長';
+        } else if (initialTicketsValue === 'fascia-release') {
+            ticketCount = 1;
+            ticketPrice = 4500;
+            ticketTypeName = '筋膜リリース';
+        } else if (initialTicketsValue === 'pair-training') {
+            ticketCount = 1;
+            ticketPrice = 15000;
+            ticketTypeName = 'ペアトレ';
+        } else if (initialTicketsValue === 'custom') {
+            ticketCount = 1;
+            ticketPrice = parseInt(document.getElementById('customPrice').value) || 0;
+            ticketTypeName = 'カスタム';
+        } else if (initialTicketsValue) {
+            // 通常の回数券（1/4/8回）
+            ticketCount = parseInt(initialTicketsValue);
+            if (ticketCount === 1) {
+                ticketPrice = 9000;
+                ticketTypeName = '1回チケット';
+            } else if (ticketCount === 4) {
+                ticketPrice = 36000;
+                ticketTypeName = '4回チケット';
+            } else if (ticketCount === 8) {
+                ticketPrice = 70000;
+                ticketTypeName = '8回チケット';
+            }
+        }
 
         clientData.tickets = {
-            remaining: initialTickets,
-            total: initialTickets
+            remaining: ticketCount,
+            total: ticketCount
         };
 
-        // チケット料金を自動設定
-        let ticketPrice = 0;
-        if (initialTickets === 1) ticketPrice = 9000;
-        else if (initialTickets === 4) ticketPrice = 36000;
-        else if (initialTickets === 8) ticketPrice = 70000;
-
         // チケット履歴に記録
-        if (initialTickets > 0) {
+        if (ticketCount > 0) {
             clientData.ticketHistory.push({
                 id: 'ticket_' + Date.now(),
                 date: new Date().toISOString(),
-                count: initialTickets,
+                type: ticketTypeName,
+                count: ticketCount,
                 price: ticketPrice,
                 paymentMethod: '初回購入',
                 paymentStatus: '完了'
@@ -1149,6 +1259,12 @@ function openSessionModal() {
         return;
     }
 
+    // 編集モードフラグをクリア
+    delete window.editingSessionId;
+
+    // モーダルタイトルをリセット
+    document.querySelector('#sessionModal h2').textContent = 'セッション記録';
+
     // フォームリセット
     document.getElementById('sessionForm').reset();
     document.getElementById('sessionRating').value = 5;
@@ -1179,9 +1295,54 @@ function openSessionModal() {
         }
     }
 
-    // エクササイズリストをクリア
-    document.getElementById('exercisesList').innerHTML = '';
-    addExerciseEntry(); // 最初のエクササイズを追加
+    // 下書きがあれば読み込む
+    const draftKey = `sessionDraft_${currentClientId}`;
+    const savedDraft = localStorage.getItem(draftKey);
+
+    if (savedDraft) {
+        try {
+            const draft = JSON.parse(savedDraft);
+            // フォームに下書きデータを入力
+            if (draft.weight) document.getElementById('sessionWeight').value = draft.weight;
+            if (draft.bodyFat) document.getElementById('sessionBodyFat').value = draft.bodyFat;
+            if (draft.muscleMass) document.getElementById('sessionMuscleMass').value = draft.muscleMass;
+            if (draft.bmr) document.getElementById('sessionBMR').value = draft.bmr;
+            if (draft.rating) {
+                document.getElementById('sessionRating').value = draft.rating;
+                document.getElementById('ratingValue').textContent = draft.rating;
+            }
+            if (draft.notes) document.getElementById('sessionNotes').value = draft.notes;
+            if (draft.nextAppointment) document.getElementById('nextAppointment').value = draft.nextAppointment;
+
+            // エクササイズリストを再構築
+            document.getElementById('exercisesList').innerHTML = '';
+            if (draft.exercises && draft.exercises.length > 0) {
+                draft.exercises.forEach(exercise => {
+                    const entry = addExerciseEntry();
+                    const inputs = entry.querySelectorAll('input, select');
+                    inputs[0].value = exercise.name || '';
+                    inputs[1].value = exercise.sets || '';
+                    inputs[2].value = exercise.reps || '';
+                    inputs[3].value = exercise.weight || '';
+                });
+            } else {
+                addExerciseEntry();
+            }
+
+            // 下書き通知を表示
+            document.getElementById('draftAlert').style.display = 'flex';
+        } catch (e) {
+            console.error('下書きの読み込みに失敗しました:', e);
+            document.getElementById('exercisesList').innerHTML = '';
+            addExerciseEntry();
+            document.getElementById('draftAlert').style.display = 'none';
+        }
+    } else {
+        // エクササイズリストをクリア
+        document.getElementById('exercisesList').innerHTML = '';
+        addExerciseEntry(); // 最初のエクササイズを追加
+        document.getElementById('draftAlert').style.display = 'none';
+    }
 
     // 特記事項の警告表示
     if (client.medicalNotes && client.medicalNotes.trim() !== '') {
@@ -1197,6 +1358,48 @@ function openSessionModal() {
 
 function closeSessionModal() {
     document.getElementById('sessionModal').classList.remove('active');
+}
+
+// セッション下書き保存
+function saveSessionDraft() {
+    if (!currentClientId) return;
+
+    // エクササイズデータを収集
+    const exerciseEntries = document.querySelectorAll('.exercise-entry');
+    const exercises = [];
+    exerciseEntries.forEach(entry => {
+        const inputs = entry.querySelectorAll('input, select');
+        const name = inputs[0].value;
+        const sets = inputs[1].value;
+        const reps = inputs[2].value;
+        const weight = inputs[3].value;
+
+        if (name || sets || reps || weight) {
+            exercises.push({
+                name: name,
+                sets: parseInt(sets) || 0,
+                reps: parseInt(reps) || 0,
+                weight: parseFloat(weight) || 0
+            });
+        }
+    });
+
+    const draftData = {
+        weight: parseFloat(document.getElementById('sessionWeight').value) || null,
+        bodyFat: parseFloat(document.getElementById('sessionBodyFat').value) || null,
+        muscleMass: parseFloat(document.getElementById('sessionMuscleMass').value) || null,
+        bmr: parseFloat(document.getElementById('sessionBMR').value) || null,
+        rating: parseInt(document.getElementById('sessionRating').value) || 5,
+        notes: document.getElementById('sessionNotes').value || '',
+        nextAppointment: document.getElementById('nextAppointment').value || null,
+        exercises: exercises
+    };
+
+    const draftKey = `sessionDraft_${currentClientId}`;
+    localStorage.setItem(draftKey, JSON.stringify(draftData));
+
+    showNotification('下書きを保存しました');
+    closeSessionModal();
 }
 
 function addExerciseEntry() {
@@ -1488,12 +1691,26 @@ function handleSessionFormSubmit(e) {
         client.sessions = [];
     }
 
-    // セッションを先頭に追加（新しいものが上）
-    client.sessions.unshift(sessionData);
+    // 編集モードかどうかをチェック
+    if (window.editingSessionId) {
+        // 編集モード：既存セッションを更新
+        const sessionIndex = client.sessions.findIndex(s => s.id === window.editingSessionId);
+        if (sessionIndex !== -1) {
+            // 既存のIDと日付を保持
+            sessionData.id = client.sessions[sessionIndex].id;
+            sessionData.date = client.sessions[sessionIndex].date;
+            client.sessions[sessionIndex] = sessionData;
+        }
+        // 編集モードフラグをクリア
+        delete window.editingSessionId;
+    } else {
+        // 新規作成モード：セッションを先頭に追加（新しいものが上）
+        client.sessions.unshift(sessionData);
 
-    // チケット残数を減らす
-    if (client.tickets && client.tickets.remaining > 0) {
-        client.tickets.remaining--;
+        // チケット残数を減らす
+        if (client.tickets && client.tickets.remaining > 0) {
+            client.tickets.remaining--;
+        }
     }
 
     // 次回予約日を更新
@@ -1506,6 +1723,10 @@ function handleSessionFormSubmit(e) {
 
     // 保存
     saveToLocalStorage();
+
+    // 下書きを削除
+    const draftKey = `sessionDraft_${currentClientId}`;
+    localStorage.removeItem(draftKey);
 
     // UI更新
     renderSessionsList(client);
@@ -1553,7 +1774,11 @@ function renderSessionsList(client) {
         sessionDiv.innerHTML = `
             <div class="session-header">
                 <div class="session-date">${formatDate(new Date(session.date))}</div>
-                <div class="session-rating">⭐ ${session.rating}/10</div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div class="session-rating">⭐ ${session.rating}/10</div>
+                    <button class="btn-small btn-secondary" onclick="editSession('${client.id}', '${session.id}')">編集</button>
+                    <button class="btn-small btn-danger" onclick="deleteSession('${client.id}', '${session.id}')">削除</button>
+                </div>
             </div>
             <div class="session-body">
                 <div class="session-measurements">
@@ -1592,6 +1817,83 @@ function renderSessionsList(client) {
 
         container.appendChild(sessionDiv);
     });
+}
+
+// セッション編集
+function editSession(clientId, sessionId) {
+    const client = clients.find(c => c.id === clientId);
+    if (!client) return;
+
+    const session = client.sessions.find(s => s.id === sessionId);
+    if (!session) return;
+
+    // セッションフォームに既存データを入力
+    document.getElementById('sessionWeight').value = session.weight || '';
+    document.getElementById('sessionBodyFat').value = session.bodyFat || '';
+    document.getElementById('sessionMuscleMass').value = session.muscleMass || '';
+    document.getElementById('sessionBMR').value = session.bmr || session.basalMetabolism || '';
+    document.getElementById('sessionRating').value = session.rating || 5;
+    document.getElementById('ratingValue').textContent = session.rating || 5;
+    document.getElementById('sessionNotes').value = session.notes || '';
+    document.getElementById('nextAppointment').value = session.nextAppointment || '';
+
+    // エクササイズリストを再構築
+    document.getElementById('exercisesList').innerHTML = '';
+    if (session.exercises && session.exercises.length > 0) {
+        session.exercises.forEach(exercise => {
+            const entry = addExerciseEntry();
+            const inputs = entry.querySelectorAll('input, select');
+            inputs[0].value = exercise.name || '';
+            inputs[1].value = exercise.sets || '';
+            inputs[2].value = exercise.reps || '';
+            inputs[3].value = exercise.weight || '';
+        });
+    } else {
+        addExerciseEntry();
+    }
+
+    // 下書き通知を非表示
+    document.getElementById('draftAlert').style.display = 'none';
+
+    // 編集モードフラグを設定
+    window.editingSessionId = sessionId;
+
+    // モーダルタイトルを変更
+    document.querySelector('#sessionModal h2').textContent = 'セッション記録を編集';
+
+    // モーダルを表示
+    document.getElementById('sessionModal').classList.add('active');
+}
+
+// セッション削除
+function deleteSession(clientId, sessionId) {
+    if (!confirm('このセッション記録を削除しますか？')) return;
+
+    const client = clients.find(c => c.id === clientId);
+    if (!client) return;
+
+    const sessionIndex = client.sessions.findIndex(s => s.id === sessionId);
+    if (sessionIndex === -1) return;
+
+    // セッションを削除
+    client.sessions.splice(sessionIndex, 1);
+
+    // チケット残数を戻す
+    if (client.tickets) {
+        client.tickets.remaining++;
+    }
+
+    // 保存
+    saveToLocalStorage();
+
+    // UI更新
+    renderSessionsList(client);
+    renderProgressCharts(client);
+    updateStats();
+    renderDashboard();
+    renderClientsGrid();
+
+    showNotification('セッション記録を削除しました');
 }
 
 // ========================================
@@ -2007,6 +2309,39 @@ function renderIntegratedChart(client, sessionsToShow, labels) {
     });
 }
 
+// グラフを画像としてエクスポート
+function exportChartAsImage() {
+    const canvas = document.getElementById('integratedChart');
+    if (!canvas) {
+        showNotification('グラフが見つかりません', 'error');
+        return;
+    }
+
+    // キャンバスを画像に変換
+    canvas.toBlob(function(blob) {
+        if (!blob) {
+            showNotification('画像の生成に失敗しました', 'error');
+            return;
+        }
+
+        // ダウンロード用のリンクを作成
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        const client = clients.find(c => c.id === currentClientId);
+        const clientName = client ? client.name : '顧客';
+        const date = new Date().toISOString().split('T')[0];
+
+        link.download = `${clientName}_進捗グラフ_${date}.png`;
+        link.href = url;
+        link.click();
+
+        // URLを解放
+        URL.revokeObjectURL(url);
+
+        showNotification('グラフを画像として保存しました');
+    }, 'image/png');
+}
+
 // ========================================
 // チケット管理
 // ========================================
@@ -2032,12 +2367,46 @@ function handleTicketFormSubmit(e) {
     if (!client) return;
 
     const selectedTicket = document.querySelector('input[name="ticketType"]:checked');
-    const ticketCount = parseInt(selectedTicket.value);
-    const ticketPrice = parseInt(selectedTicket.getAttribute('data-price'));
+    const ticketValue = selectedTicket.value;
+
+    // チケット種類と料金を取得
+    let ticketCount = 0;
+    let ticketPrice = 0;
+    let ticketTypeName = '';
+
+    if (ticketValue === 'pt-extension') {
+        ticketCount = 1;
+        ticketPrice = 4500;
+        ticketTypeName = 'PT延長';
+    } else if (ticketValue === 'fascia-release') {
+        ticketCount = 1;
+        ticketPrice = 4500;
+        ticketTypeName = '筋膜リリース';
+    } else if (ticketValue === 'pair-training') {
+        ticketCount = 1;
+        ticketPrice = 15000;
+        ticketTypeName = 'ペアトレ';
+    } else if (ticketValue === 'custom') {
+        ticketCount = 1;
+        ticketPrice = parseInt(document.getElementById('customPriceModal').value) || 0;
+        ticketTypeName = 'カスタム';
+    } else {
+        // 通常の回数券（1/4/8回）
+        ticketCount = parseInt(ticketValue);
+        ticketPrice = parseInt(selectedTicket.getAttribute('data-price'));
+        if (ticketCount === 1) {
+            ticketTypeName = '1回チケット';
+        } else if (ticketCount === 4) {
+            ticketTypeName = '4回チケット';
+        } else if (ticketCount === 8) {
+            ticketTypeName = '8回チケット';
+        }
+    }
 
     const purchaseData = {
         id: 'purchase_' + Date.now(),
         date: new Date().toISOString(),
+        type: ticketTypeName,
         count: ticketCount,
         price: ticketPrice,
         paymentMethod: document.getElementById('ticketPaymentMethod').value,
@@ -2068,7 +2437,7 @@ function handleTicketFormSubmit(e) {
     renderClientsGrid();
 
     closeTicketModal();
-    showNotification(`${ticketCount}回チケットを追加しました`);
+    showNotification(`${ticketTypeName}を追加しました`);
 }
 
 function renderTicketsInfo(client) {
@@ -2104,10 +2473,13 @@ function renderTicketsInfo(client) {
         const statusClass = purchase.paymentStatus === '支払済み' ? 'paid' : 'unpaid';
         const statusButtonText = purchase.paymentStatus === '支払済み' ? '未払いに変更' : '支払済みに変更';
 
+        // チケット種類名を表示（新しいデータには type があり、古いデータには count のみ）
+        const ticketDisplayName = purchase.type || `${purchase.count}回チケット`;
+
         historyItem.innerHTML = `
             <div class="ticket-history-info">
                 <div>
-                    <strong>${purchase.count}回チケット</strong>
+                    <strong>${ticketDisplayName}</strong>
                     <p>${formatDate(new Date(purchase.date))} - ¥${purchase.price.toLocaleString()}</p>
                     <small>${purchase.paymentMethod}</small>
                 </div>

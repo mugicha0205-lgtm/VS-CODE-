@@ -226,6 +226,11 @@ body {
     transition: all var(--transition-base);
     white-space: nowrap;
     box-shadow: var(--shadow-sm);
+    /* iPad/タッチデバイス対応 */
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .btn svg {
