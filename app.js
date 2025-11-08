@@ -15,6 +15,11 @@ let charts = {
 
 let deferredInstallPrompt = null;
 
+// カレンダー用変数
+const today = new Date();
+let currentCalendarMonth = today.getMonth();
+let currentCalendarYear = today.getFullYear();
+
 // Google API関連
 let googleAccessToken = null;
 let gapiInited = false;
@@ -138,6 +143,7 @@ document.addEventListener('DOMContentLoaded', function() {
     renderDashboard();
     renderClientsGrid();
     updateStats();
+    renderCalendar();
 
     // 通知権限をリクエスト
     requestNotificationPermission();
@@ -291,6 +297,32 @@ function setupEventListeners() {
             }
         });
     }
+
+    // カレンダーコントロール
+    document.getElementById('prevMonthBtn').addEventListener('click', () => {
+        currentCalendarMonth--;
+        if (currentCalendarMonth < 0) {
+            currentCalendarMonth = 11;
+            currentCalendarYear--;
+        }
+        renderCalendar();
+    });
+
+    document.getElementById('nextMonthBtn').addEventListener('click', () => {
+        currentCalendarMonth++;
+        if (currentCalendarMonth > 11) {
+            currentCalendarMonth = 0;
+            currentCalendarYear++;
+        }
+        renderCalendar();
+    });
+
+    document.getElementById('todayBtn').addEventListener('click', () => {
+        const today = new Date();
+        currentCalendarMonth = today.getMonth();
+        currentCalendarYear = today.getFullYear();
+        renderCalendar();
+    });
 
     // 検索・フィルター
     document.getElementById('searchInput').addEventListener('input', filterClients);
@@ -5060,6 +5092,178 @@ function updateRiskClientsList() {
         `;
         container.appendChild(card);
     });
+}
+
+// ========================================
+// カレンダー機能
+// ========================================
+
+function renderCalendar() {
+    const container = document.getElementById('calendarContainer');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    // 月年表示を更新
+    const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+    document.getElementById('calendarMonthYear').textContent = `${currentCalendarYear}年${monthNames[currentCalendarMonth]}`;
+
+    // 曜日ヘッダーを追加
+    const dayHeaders = ['日', '月', '火', '水', '木', '金', '土'];
+    dayHeaders.forEach(day => {
+        const header = document.createElement('div');
+        header.className = 'calendar-day-header';
+        header.textContent = day;
+        container.appendChild(header);
+    });
+
+    // 月の最初の日と最後の日を取得
+    const firstDay = new Date(currentCalendarYear, currentCalendarMonth, 1);
+    const lastDay = new Date(currentCalendarYear, currentCalendarMonth + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startDayOfWeek = firstDay.getDay();
+
+    // 前月の日付を追加（空白埋め）
+    const prevMonthLastDay = new Date(currentCalendarYear, currentCalendarMonth, 0).getDate();
+    for (let i = startDayOfWeek - 1; i >= 0; i--) {
+        const dayDiv = createCalendarDay(prevMonthLastDay - i, currentCalendarMonth - 1, currentCalendarYear, true);
+        container.appendChild(dayDiv);
+    }
+
+    // 当月の日付を追加
+    for (let day = 1; day <= daysInMonth; day++) {
+        const dayDiv = createCalendarDay(day, currentCalendarMonth, currentCalendarYear, false);
+        container.appendChild(dayDiv);
+    }
+
+    // 次月の日付を追加（残りの枠を埋める）
+    const totalCells = container.children.length - 7; // ヘッダーを除く
+    const remainingCells = Math.ceil((totalCells) / 7) * 7 - totalCells;
+    for (let day = 1; day <= remainingCells; day++) {
+        const dayDiv = createCalendarDay(day, currentCalendarMonth + 1, currentCalendarYear, true);
+        container.appendChild(dayDiv);
+    }
+}
+
+function createCalendarDay(day, month, year, isOtherMonth) {
+    const dayDiv = document.createElement('div');
+    dayDiv.className = 'calendar-day';
+    if (isOtherMonth) dayDiv.classList.add('other-month');
+
+    // 今日かチェック
+    const todayDate = new Date();
+    const currentDate = new Date(year, month, day);
+    if (currentDate.toDateString() === todayDate.toDateString()) {
+        dayDiv.classList.add('today');
+    }
+
+    // 日付番号
+    const dayNumber = document.createElement('div');
+    dayNumber.className = 'calendar-day-number';
+    dayNumber.textContent = day;
+    dayDiv.appendChild(dayNumber);
+
+    // その日のデータを取得
+    const dayData = getCalendarDayData(currentDate);
+
+    // コンテンツエリア
+    const content = document.createElement('div');
+    content.className = 'calendar-day-content';
+
+    // セッション数を表示
+    if (dayData.sessions > 0) {
+        const sessionEvent = document.createElement('div');
+        sessionEvent.className = 'calendar-event session';
+        sessionEvent.textContent = `${dayData.sessions}セッション`;
+        content.appendChild(sessionEvent);
+    }
+
+    // 売上を表示
+    if (dayData.revenue > 0) {
+        const revenueEvent = document.createElement('div');
+        revenueEvent.className = 'calendar-event revenue';
+        revenueEvent.textContent = `¥${dayData.revenue.toLocaleString()}`;
+        content.appendChild(revenueEvent);
+    }
+
+    // 予約を表示
+    if (dayData.appointments > 0) {
+        const appointmentEvent = document.createElement('div');
+        appointmentEvent.className = 'calendar-event appointment';
+        appointmentEvent.textContent = `${dayData.appointments}件予約`;
+        content.appendChild(appointmentEvent);
+    }
+
+    dayDiv.appendChild(content);
+
+    // クリックイベント（詳細表示）
+    dayDiv.addEventListener('click', () => {
+        showCalendarDayDetail(currentDate, dayData);
+    });
+
+    return dayDiv;
+}
+
+function getCalendarDayData(date) {
+    const dateStr = date.toISOString().split('T')[0];
+    let sessions = 0;
+    let revenue = 0;
+    let appointments = 0;
+
+    clients.forEach(client => {
+        // セッション数をカウント
+        if (client.sessions) {
+            client.sessions.forEach(session => {
+                const sessionDate = new Date(session.date).toISOString().split('T')[0];
+                if (sessionDate === dateStr) {
+                    sessions++;
+                }
+            });
+        }
+
+        // 売上をカウント（チケット購入）
+        if (client.ticketHistory) {
+            client.ticketHistory.forEach(ticket => {
+                const ticketDate = new Date(ticket.date).toISOString().split('T')[0];
+                if (ticketDate === dateStr && (ticket.paymentStatus === '完了' || ticket.paymentStatus === '支払済み')) {
+                    revenue += ticket.price || 0;
+                }
+            });
+        }
+
+        // 予約をカウント
+        if (client.nextAppointment) {
+            const apptDate = new Date(client.nextAppointment).toISOString().split('T')[0];
+            if (apptDate === dateStr) {
+                appointments++;
+            }
+        }
+    });
+
+    return { sessions, revenue, appointments };
+}
+
+function showCalendarDayDetail(date, dayData) {
+    const dateStr = date.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
+
+    let detailHTML = `<strong>${dateStr}の詳細</strong><br><br>`;
+
+    if (dayData.sessions > 0) {
+        detailHTML += `セッション数: ${dayData.sessions}件<br>`;
+    }
+    if (dayData.revenue > 0) {
+        detailHTML += `売上: ¥${dayData.revenue.toLocaleString()}<br>`;
+    }
+    if (dayData.appointments > 0) {
+        detailHTML += `予約: ${dayData.appointments}件<br>`;
+    }
+
+    if (dayData.sessions === 0 && dayData.revenue === 0 && dayData.appointments === 0) {
+        detailHTML += 'この日の予定はありません';
+    }
+
+    // 簡易的なアラート表示（モーダル化も可能）
+    showNotification(detailHTML);
 }
 
 // グローバル関数（HTMLから呼び出すため）

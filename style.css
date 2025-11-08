@@ -3727,3 +3727,154 @@ canvas {
         font-size: 12px;
     }
 }
+
+/* ===== カレンダービュー ===== */
+.calendar-section {
+    background: var(--white);
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: var(--shadow-md);
+    margin-top: 24px;
+}
+
+.calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.calendar-controls {
+    display: flex;
+    align-items: center;
+}
+
+.calendar-container {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+}
+
+.calendar-day-header {
+    text-align: center;
+    font-weight: 600;
+    color: var(--navy-medium);
+    padding: 12px 8px;
+    font-size: 14px;
+    border-bottom: 2px solid var(--slate-200);
+}
+
+.calendar-day {
+    min-height: 100px;
+    padding: 8px;
+    border: 1px solid var(--slate-200);
+    border-radius: 8px;
+    background: var(--white);
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.calendar-day:hover {
+    border-color: var(--accent-blue);
+    box-shadow: var(--shadow-sm);
+    transform: translateY(-2px);
+}
+
+.calendar-day.other-month {
+    background: var(--slate-50);
+    color: var(--silver-medium);
+}
+
+.calendar-day.today {
+    border: 2px solid var(--accent-blue);
+    background: #eff6ff;
+}
+
+.calendar-day-number {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 8px;
+    color: var(--navy-dark);
+}
+
+.calendar-day.other-month .calendar-day-number {
+    color: var(--silver-medium);
+}
+
+.calendar-day-content {
+    font-size: 11px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.calendar-event {
+    padding: 3px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.calendar-event.session {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.calendar-event.revenue {
+    background: #d1fae5;
+    color: #065f46;
+    font-weight: 600;
+}
+
+.calendar-event.appointment {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.calendar-day-stats {
+    display: flex;
+    gap: 6px;
+    margin-top: 4px;
+    flex-wrap: wrap;
+}
+
+.calendar-stat {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: var(--slate-100);
+    color: var(--navy-medium);
+}
+
+@media (max-width: 768px) {
+    .calendar-section {
+        padding: 16px;
+    }
+
+    .calendar-header {
+        flex-direction: column;
+        gap: 12px;
+        align-items: flex-start;
+    }
+
+    .calendar-day {
+        min-height: 80px;
+        padding: 6px;
+    }
+
+    .calendar-day-number {
+        font-size: 12px;
+    }
+
+    .calendar-event {
+        font-size: 9px;
+        padding: 2px 4px;
+    }
+
+    .calendar-stat {
+        font-size: 9px;
+    }
+}
