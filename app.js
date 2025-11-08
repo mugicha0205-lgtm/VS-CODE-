@@ -711,7 +711,12 @@ function renderUpcomingAppointments() {
 
 function updateStats() {
     const total = clients.length;
-    document.getElementById('totalClients').textContent = total;
+
+    // ホームページの統計カードは削除されたので、要素が存在する場合のみ更新
+    const totalClientsEl = document.getElementById('totalClients');
+    if (totalClientsEl) {
+        totalClientsEl.textContent = total;
+    }
 
     // 今月の売上
     const now = new Date();
@@ -727,7 +732,7 @@ function updateStats() {
                 const purchaseDate = new Date(purchase.date);
                 if (purchaseDate.getMonth() === currentMonth &&
                     purchaseDate.getFullYear() === currentYear &&
-                    purchase.paymentStatus === '支払済み') {
+                    purchase.paymentStatus === '完了') {
                     monthlyRevenue += purchase.price;
                 }
             });
@@ -744,14 +749,25 @@ function updateStats() {
         }
     });
 
-    document.getElementById('monthlyRevenue').textContent = '¥' + monthlyRevenue.toLocaleString();
-    document.getElementById('monthlySessions').textContent = monthlySessions;
+    const monthlyRevenueEl = document.getElementById('monthlyRevenue');
+    if (monthlyRevenueEl) {
+        monthlyRevenueEl.textContent = '¥' + monthlyRevenue.toLocaleString();
+    }
+
+    const monthlySessionsEl = document.getElementById('monthlySessions');
+    if (monthlySessionsEl) {
+        monthlySessionsEl.textContent = monthlySessions;
+    }
 
     // チケット残数が少ない顧客
     const lowTicketClients = clients.filter(c =>
         c.tickets && c.tickets.remaining <= 2 && c.tickets.remaining > 0
     ).length;
-    document.getElementById('lowTicketClients').textContent = lowTicketClients;
+
+    const lowTicketClientsEl = document.getElementById('lowTicketClients');
+    if (lowTicketClientsEl) {
+        lowTicketClientsEl.textContent = lowTicketClients;
+    }
 }
 
 // ========================================
@@ -977,6 +993,12 @@ function openAddClientModal() {
         }
     });
 
+    // 新規登録時はチケット入力欄を表示、既存顧客情報は非表示
+    const ticketInfoDisplay = document.getElementById('ticketInfoDisplay');
+    const ticketInfoInput = document.getElementById('ticketInfoInput');
+    if (ticketInfoDisplay) ticketInfoDisplay.style.display = 'none';
+    if (ticketInfoInput) ticketInfoInput.style.display = 'block';
+
     // モーダルを表示
     document.getElementById('clientModal').classList.add('active');
 }
@@ -1158,6 +1180,8 @@ function switchModalTab(tabName) {
 
 function handleClientFormSubmit(e) {
     e.preventDefault();
+
+    try {
 
     // パーソナルを受ける目的
     const trainingPurposeEl = document.getElementById('trainingPurpose');
@@ -1382,13 +1406,33 @@ function handleClientFormSubmit(e) {
         clients.push(clientData);
     }
 
+    // 新規登録かどうかを保存（closeClientModalでcurrentClientIdがnullになるため）
+    const isNewClient = !currentClientId;
+
     saveToLocalStorage();
     renderDashboard();
     renderClientsGrid();
     updateStats();
-    closeClientModal();
 
     showNotification('顧客情報を保存しました');
+
+    // モーダルを閉じる
+    closeClientModal();
+
+    // モーダルのアニメーションが完了してからページ遷移（350ms待つ）
+    setTimeout(() => {
+        if (isNewClient) {
+            navigateToPage('home');
+        } else {
+            // 元のページに戻る（現在のページを再表示）
+            navigateToPage(currentPage);
+        }
+    }, 350);
+
+    } catch (error) {
+        console.error('顧客情報の保存中にエラーが発生しました:', error);
+        showNotification('エラーが発生しました: ' + error.message, 'error');
+    }
 }
 
 function deleteClient() {
@@ -1403,8 +1447,16 @@ function deleteClient() {
         renderDashboard();
         renderClientsGrid();
         updateStats();
-        closeClientModal();
+
         showNotification('顧客データを削除しました');
+
+        // モーダルを閉じる
+        closeClientModal();
+
+        // モーダルのアニメーションが完了してからページ遷移（350ms待つ）
+        setTimeout(() => {
+            navigateToPage(currentPage);
+        }, 350);
     }
 }
 
@@ -3459,29 +3511,11 @@ let currentReportMonth = null;
 
 // 月次レポートページの初期化
 function initReportPage() {
-    const monthSelect = document.getElementById('reportMonthSelect');
-    if (!monthSelect) return;
-
-    // 過去12ヶ月分の選択肢を生成
-    monthSelect.innerHTML = '';
+    // 当月のレポートを表示
     const today = new Date();
-
-    for (let i = 0; i < 12; i++) {
-        const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
-        const year = date.getFullYear();
-        const month = date.getMonth() + 1;
-        const option = document.createElement('option');
-        option.value = `${year}-${String(month).padStart(2, '0')}`;
-        option.textContent = `${year}年${month}月`;
-        if (i === 0) option.selected = true;
-        monthSelect.appendChild(option);
-    }
-
-    // イベントリスナー
-    monthSelect.addEventListener('change', () => {
-        currentReportMonth = monthSelect.value;
-        updateReportData();
-    });
+    const year = today.getFullYear();
+    const month = today.getMonth() + 1;
+    currentReportMonth = `${year}-${String(month).padStart(2, '0')}`;
 
     const generateBtn = document.getElementById('generateReportBtn');
     if (generateBtn) {
@@ -3489,7 +3523,6 @@ function initReportPage() {
     }
 
     // 初期データ表示
-    currentReportMonth = monthSelect.value;
     updateReportData();
 }
 
@@ -5271,5 +5304,7 @@ window.openClientDetail = openClientDetail;
 window.removeExerciseEntry = removeExerciseEntry;
 window.downloadBackup = downloadBackup;
 window.deleteCustomExercise = deleteCustomExercise;
+window.editSession = editSession;
+window.deleteSession = deleteSession;
 
 console.log('app.js loaded successfully');
