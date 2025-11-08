@@ -265,6 +265,33 @@ function setupEventListeners() {
         });
     });
 
+    // セッション写真プレビュー
+    const sessionPhotos = document.getElementById('sessionPhotos');
+    if (sessionPhotos) {
+        sessionPhotos.addEventListener('change', function(e) {
+            const photoPreview = document.getElementById('photoPreview');
+            photoPreview.innerHTML = '';
+
+            const files = e.target.files;
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const reader = new FileReader();
+
+                reader.onload = function(event) {
+                    const img = document.createElement('img');
+                    img.src = event.target.result;
+                    img.style.width = '100%';
+                    img.style.height = '100px';
+                    img.style.objectFit = 'cover';
+                    img.style.borderRadius = '4px';
+                    photoPreview.appendChild(img);
+                };
+
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+
     // 検索・フィルター
     document.getElementById('searchInput').addEventListener('input', filterClients);
     document.getElementById('statusFilter').addEventListener('change', filterClients);
@@ -1744,7 +1771,7 @@ function calculateBasalMetabolism(weight, bodyFat) {
     return Math.round(bmr);
 }
 
-function handleSessionFormSubmit(e) {
+async function handleSessionFormSubmit(e) {
     e.preventDefault();
 
     if (!currentClientId) return;
@@ -1778,6 +1805,23 @@ function handleSessionFormSubmit(e) {
     // 基礎代謝量を体組成計で測定した値から取得
     const bmr = parseFloat(document.getElementById('sessionBMR').value) || null;
 
+    // 写真を Base64 に変換
+    const photoFiles = document.getElementById('sessionPhotos').files;
+    const photoPromises = [];
+    for (let i = 0; i < photoFiles.length; i++) {
+        const promise = new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                resolve(event.target.result);
+            };
+            reader.readAsDataURL(photoFiles[i]);
+        });
+        photoPromises.push(promise);
+    }
+
+    // 写真の読み込みを待つ
+    const photos = await Promise.all(photoPromises);
+
     // セッションデータ
     const sessionData = {
         id: 'session_' + Date.now(),
@@ -1791,7 +1835,8 @@ function handleSessionFormSubmit(e) {
         exercises: exercises,
         rating: parseInt(document.getElementById('sessionRating').value),
         notes: document.getElementById('sessionNotes').value,
-        nextAppointment: document.getElementById('nextAppointment').value || null
+        nextAppointment: document.getElementById('nextAppointment').value || null,
+        photos: photos
     };
 
     // セッション配列がなければ作成
@@ -1920,6 +1965,14 @@ function renderSessionsList(client) {
                     </div>
                 ` : ''}
                 ${session.notes ? `<p><strong>メモ:</strong> ${session.notes}</p>` : ''}
+                ${session.photos && session.photos.length > 0 ? `
+                    <div style="margin-top: 10px;">
+                        <strong>写真:</strong>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; margin-top: 8px;">
+                            ${session.photos.map(photo => `<img src="${photo}" style="width: 100%; height: 100px; object-fit: cover; border-radius: 4px; cursor: pointer;" onclick="window.open('${photo}')">`).join('')}
+                        </div>
+                    </div>
+                ` : ''}
             </div>
         `;
 
